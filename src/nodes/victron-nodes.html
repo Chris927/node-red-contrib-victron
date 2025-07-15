@@ -439,6 +439,38 @@
         buildEditForm(nodeType, nodeLabel);
         var nodePaletteLabel = isOutputNode ? nodeLabel + ' Control' : nodeLabel;
 
+        // TODO: The commented out approach does not work: It results in
+        // multiple nodes with 'victron-client-id', which breaks deployments. For
+        // some reason, the config node is not always in RED.nodes.eachConfig,
+        // even if it exists already
+        //
+        // function ensureConfigNodeExists() {
+        //     console.log("Ensuring Victron client config node exists");
+        //     let hasClient = false
+        //     RED.nodes.eachConfig(function (n) {
+        //         if (n.id === 'victron-client-id')
+        //             hasClient = true
+        //     });
+
+        //     if ( !hasClient ) {
+        //         var victronClientNode = {
+        //             id: "victron-client-id",
+        //             _def: RED.nodes.getType("victron-client"),
+        //             type: "victron-client",
+        //             users: [],
+        //             "showValues": true,
+        //             "contextStore": true,
+        //             valid: true
+        //         };
+        //         RED.nodes.add(victronClientNode);
+        //         RED.nodes.dirty(true);
+        //         console.warn("No Victron client config node found, creating a new one. Please check the configuration of the Victron client node.");
+        //     } else {
+        //         console.log("Victron client config node already exists.");
+        //     }
+        // }
+
+        // ensureConfigNodeExists();
         RED.nodes.registerType(nodeType, {
             category: 'Victron Energy',
             paletteLabel: nodePaletteLabel,
@@ -450,7 +482,16 @@
                 initial: { value: undefined },
                 name: { value: "" },
                 "onlyChanges": { value: false },
-                "roundValues": { value: undefined }
+                "roundValues": { value: undefined },
+                // as per the docs, we should refer to a config node like this, and not 
+                // by creating the node in 'onadd' below. The problem with
+                // doing it in 'onadd': Importing a flow breaks, as 'onadd' does not run
+                // when importing a flow.
+                config: {
+                    value: "victron-client-id",
+                    type: "victron-client",
+                    required: true,
+                }
             },
             color: isCustomNode ? "#f7ab3e" : "#4790d0",
             inputs: isOutputNode ? 1 : 0,
@@ -473,6 +514,7 @@
                 });
 
                 if ( !hasClient ) {
+                    console.warn("onadd: No Victron client config node found, creating a new one.");
                     var victronClientNode = {
                         id: "victron-client-id",
                         _def: RED.nodes.getType("victron-client"),

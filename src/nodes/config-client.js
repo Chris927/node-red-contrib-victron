@@ -1,4 +1,4 @@
-module.exports = function (RED) {
+module.exports = function(RED) {
   'use strict'
 
   const utils = require('../services/utils.js')
@@ -14,22 +14,63 @@ module.exports = function (RED) {
      */
   let globalClient = null
 
+  function ensureGlobalClientIsInstantiated(RED) {
+
+    // TODO: Trying to get the existing config node. However, when this is called
+    // first time, there is no config node yet, so the approach below won't
+    // work to initialize 'enablePolling'.
+    const existingConfigNode = RED.nodes.getNode('victron-client-id')
+    console.warn('########## existingConfigNode:', existingConfigNode)
+
+    if (globalClient) {
+      return
+    }
+
+    try {
+      console.warn('########## getGlobalClient called, but globalClient is not initialized yet')
+
+      console.log('Creating new VictronClient')
+      const enablePolling = existingConfigNode ? existingConfigNode.enablePolling : false
+      globalClient = new VictronClient(
+        process.env.NODE_RED_DBUS_ADDRESS,
+        { enablePolling }
+      )
+      globalClient.connect()
+
+      if (!existingConfigNode) {
+        console.warn('########## No existing config node found, creating one server-side does not seem to be an option')
+        // TODO: we do the same in config-client.html (on the client side), this is experimental.
+        // this does not work: The client and server API are different, not sure about the side effects.
+        // const victronClientNode = {
+        //   id: "victron-client-id",
+        //   // _def: RED.nodes.getType("victron-client"),
+        //   type: "victron-client",
+        //   users: [],
+        //   "showValues": true,
+        //   "contextStore": true,
+        //   valid: true
+        // };
+        // RED.nodes.add(victronClientNode);
+        // RED.nodes.dirty(true);
+      }
+
+    } catch (error) {
+      console.error('Error initializing VictronClient:', error)
+      globalClient = null
+      throw new Error('Failed to initialize VictronClient: ' + error.message)
+    }
+  }
+
   /**
      * An endpoint for nodes to request services from - returns either a single service, or
      * all available services depending whether the requester gives the service parameter
      */
 
   RED.httpNode.get('/victron/services/:service?', RED.auth.needsPermission('victron-client.read'), (req, res) => {
-    debug('Services endpoint hit, globalClient exists:', !!globalClient)
-    debug('globalClient type:', typeof globalClient)
-    if (globalClient) {
-      debug('globalClient.system exists:', !!globalClient.system)
-    }
 
-    if (!globalClient) {
-      debug('Returning 503 - Client not initialized')
-      return res.status(503).send('Client not initialized')
-    }
+    ensureGlobalClientIsInstantiated(RED)
+
+    debug('globalClient.system exists:', !!globalClient.system)
 
     try {
       const services = globalClient.system.listAvailableServices(req.params.service)
@@ -41,13 +82,18 @@ module.exports = function (RED) {
       debug('Error getting services:', error)
       return res.status(500).send('Error getting services')
     }
+
   })
 
   RED.httpNode.get('/victron/cache', RED.auth.needsPermission('victron-client.read'), (req, res) => {
-    if (!globalClient) return res.status(503).send('Client not initialized')
+
+    ensureGlobalClientIsInstantiated(RED)
+
     const serialized = JSON.stringify(globalClient.system.cache)
     res.setHeader('Content-Type', 'application/json')
+
     return res.send(serialized)
+
   })
 
   /**
@@ -59,21 +105,14 @@ module.exports = function (RED) {
      * It keeps track of incoming status messages and updates
      * listening nodes' status in the UI accordingly.
      */
-  function ConfigVictronClient (config) {
-    debug('ConfigVictronClient constructor called')
+  function ConfigVictronClient(config) {
+    console.warn('########## ConfigVictronClient constructor called')
+
     debug('NODE_RED_DBUS_ADDRESS:', process.env.NODE_RED_DBUS_ADDRESS)
 
     RED.nodes.createNode(this, config)
 
-    if (!globalClient) {
-      console.log('Creating new VictronClient')
-      const enablePolling = config.enablePolling || false
-      globalClient = new VictronClient(
-        process.env.NODE_RED_DBUS_ADDRESS,
-        { enablePolling }
-      )
-      globalClient.connect()
-    }
+    ensureGlobalClientIsInstantiated(RED)
 
     this.client = globalClient
     this.showValues = config.showValues
