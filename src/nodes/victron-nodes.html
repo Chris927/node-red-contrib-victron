@@ -121,6 +121,8 @@
 
     var serviceRoot = (RED.settings.httpNodeRoot || RED.settings.httpAdminRoot || "").replace(/\/$/, "") + '/victron/services/';
 
+    var isConfigNodeInstantiated = false;
+
     function buildEditPanel(node, service, isOutputNode, isCustomNode, nodeLabel) {
         var serviceElem = $('#node-input-service');
         var pathElem = $('#node-input-path');
@@ -444,33 +446,40 @@
         // some reason, the config node is not always in RED.nodes.eachConfig,
         // even if it exists already
         //
-        // function ensureConfigNodeExists() {
-        //     console.log("Ensuring Victron client config node exists");
-        //     let hasClient = false
-        //     RED.nodes.eachConfig(function (n) {
-        //         if (n.id === 'victron-client-id')
-        //             hasClient = true
-        //     });
+        function ensureConfigNodeExists() {
+            console.log("Ensuring Victron client config node exists");
+            if (isConfigNodeInstantiated) {
+                console.log("Victron client config node already instantiated, skipping creation.");
+                return;
+            }
+            let hasClient = false
+            RED.nodes.eachConfig(function (n) {
+                if (n.id === 'victron-client-id')
+                    hasClient = true
+            });
 
-        //     if ( !hasClient ) {
-        //         var victronClientNode = {
-        //             id: "victron-client-id",
-        //             _def: RED.nodes.getType("victron-client"),
-        //             type: "victron-client",
-        //             users: [],
-        //             "showValues": true,
-        //             "contextStore": true,
-        //             valid: true
-        //         };
-        //         RED.nodes.add(victronClientNode);
-        //         RED.nodes.dirty(true);
-        //         console.warn("No Victron client config node found, creating a new one. Please check the configuration of the Victron client node.");
-        //     } else {
-        //         console.log("Victron client config node already exists.");
-        //     }
-        // }
+            if ( !hasClient ) {
+                var victronClientNode = {
+                    id: "victron-client-id",
+                    _def: RED.nodes.getType("victron-client"),
+                    type: "victron-client",
+                    // hasUsers: false,
+                    users: [],
+                    "showValues": true,
+                    "contextStore": true,
+                    valid: true
+                };
+                RED.nodes.add(victronClientNode);
+                RED.nodes.dirty(true);
+                isConfigNodeInstantiated = true;
+                console.warn("No Victron client config node found, creating a new one. Please check the configuration of the Victron client node.");
+            } else {
+                console.log("Victron client config node already exists.");
+            }
+        }
 
-        // ensureConfigNodeExists();
+        ensureConfigNodeExists();
+
         RED.nodes.registerType(nodeType, {
             category: 'Victron Energy',
             paletteLabel: nodePaletteLabel,
@@ -487,11 +496,12 @@
                 // by creating the node in 'onadd' below. The problem with
                 // doing it in 'onadd': Importing a flow breaks, as 'onadd' does not run
                 // when importing a flow.
-                config: {
-                    value: "victron-client-id",
-                    type: "victron-client",
-                    required: true,
-                }
+
+                // config: {
+                //     value: "victron-client-id",
+                //     type: "victron-client",
+                //     required: true,
+                // }
             },
             color: isCustomNode ? "#f7ab3e" : "#4790d0",
             inputs: isOutputNode ? 1 : 0,
@@ -507,26 +517,8 @@
                 saveEditPanel(this);
             },
             onadd: function() {
-                let hasClient = false
-                RED.nodes.eachConfig(function (n) {
-                    if (n.id === 'victron-client-id')
-                        hasClient = true
-                });
-
-                if ( !hasClient ) {
-                    console.warn("onadd: No Victron client config node found, creating a new one.");
-                    var victronClientNode = {
-                        id: "victron-client-id",
-                        _def: RED.nodes.getType("victron-client"),
-                        type: "victron-client",
-                        users: [],
-                        "showValues": true,
-                        "contextStore": true,
-                        valid: true
-                    };
-                    RED.nodes.add(victronClientNode);
-                    RED.nodes.dirty(true);
-                }
+                console.log('onadd, about to check for victron-client-id config node');
+                ensureConfigNodeExists();
             }
         });
     }

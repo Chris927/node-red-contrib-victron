@@ -20,7 +20,9 @@ module.exports = function(RED) {
     // first time, there is no config node yet, so the approach below won't
     // work to initialize 'enablePolling'.
     const existingConfigNode = RED.nodes.getNode('victron-client-id')
-    console.warn('########## existingConfigNode:', existingConfigNode)
+    if (!existingConfigNode) {
+      console.warn('########## existingConfigNode NOT FOUND')
+    }
 
     if (globalClient) {
       return

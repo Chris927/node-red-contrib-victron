@@ -1,4 +1,4 @@
-module.exports = function (RED) {
+module.exports = function(RED) {
   const debug = require('debug')('node-red-contrib-victron:victron-nodes')
   const utils = require('../services/utils.js')
 
@@ -41,7 +41,18 @@ module.exports = function (RED) {
   }
 
   class BaseInputNode {
-    constructor (nodeDefinition) {
+    constructor(nodeDefinition) {
+
+      console.log('### BaseInputNode constructor called, nodeDefinition:', nodeDefinition)
+
+      // In a *newly created* input node (not imported), there is nodeDefinition.config === 'victron-client-id'.
+      // We can try, for nodes where this property is not present, to insert it here?
+      //
+      if (!nodeDefinition.config) {
+        console.warn('BaseInputNode: nodeDefinition.config is not set, setting it to "victron-client-id"')
+        nodeDefinition.config = 'victron-client-id'
+      }
+
       RED.nodes.createNode(this, nodeDefinition)
 
       this.node = this
@@ -128,7 +139,7 @@ module.exports = function (RED) {
         this.client.client.getValue(this.service, this.path)
       }
 
-      this.on('close', function (done) {
+      this.on('close', function(done) {
         this.node.client.unsubscribe(this.node.subscription)
         this.node.configNode.removeStatusListener(handlerId)
         this.sentInitialValue = false
@@ -138,7 +149,7 @@ module.exports = function (RED) {
   }
 
   class BaseOutputNode {
-    constructor (nodeDefinition) {
+    constructor(nodeDefinition) {
       RED.nodes.createNode(this, nodeDefinition)
 
       this.node = this
@@ -236,11 +247,11 @@ module.exports = function (RED) {
         setValue(this.initialValue)
       }
 
-      this.on('input', function (msg) {
+      this.on('input', function(msg) {
         setValue(msg.payload, msg.path)
       })
 
-      this.on('close', function (done) {
+      this.on('close', function(done) {
         this.node.configNode.removeStatusListener(handlerId)
         done()
       })
