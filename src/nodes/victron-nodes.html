@@ -478,7 +478,11 @@
             }
         }
 
-        ensureConfigNodeExists();
+        // call ensureConfigNodeExists() with a delay
+        setTimeout(() => {
+            console.log("Ensuring Victron client config node exists after a delay");
+            ensureConfigNodeExists();
+        }, 3000);
 
         RED.nodes.registerType(nodeType, {
             category: 'Victron Energy',
