@@ -417,12 +417,56 @@
         $('body').append(scriptTag.prop('outerHTML'));
     }
 
+    var isConfigNodeInstantiated = false;
+
     // Creates an input-node config and registers it with
     // the Node-RED Node API
     function registerNode(nodeType, nodeLabel, serviceType, isOutputNode, isCustomNode) {
         // Copy the edit form template to the html body
         buildEditForm(nodeType, nodeLabel);
         var nodePaletteLabel = isOutputNode ? nodeLabel + ' Control' : nodeLabel;
+
+        
+        function ensureConfigNodeExists() {
+            console.log("Ensuring Victron client config node exists");
+            if (isConfigNodeInstantiated) {
+                console.log("Victron client config node already instantiated, skipping creation.");
+                return;
+            }
+            let hasClient = false
+            RED.nodes.eachConfig(function (n) {
+                if (n.id === 'victron-client-id')
+                    hasClient = true
+            });
+
+            if ( !hasClient ) {
+                var victronClientNode = {
+                    id: "victron-client-id",
+                    _def: RED.nodes.getType("victron-client"),
+                    type: "victron-client",
+                    hasUsers: false,
+                    users: [],
+                    "showValues": true,
+                    "contextStore": true,
+                    valid: true
+                };
+                RED.nodes.add(victronClientNode);
+                RED.nodes.dirty(true);
+                isConfigNodeInstantiated = true;
+                console.warn("No Victron client config node found, creating a new one. Please check the configuration of the Victron client node.");
+            } else {
+                console.log("Victron client config node already exists.");
+            }
+        }
+
+        // call ensureConfigNodeExists() with a delay
+        // TODO: this is not robust, but may be a fix for now. Compare comments
+        // on this commit:
+        // https://github.com/Chris927/node-red-contrib-victron/commit/a8de3d3c6e696c4144aecb7e89aab1eb7f42ec9c
+        setTimeout(() => {
+            console.log("Ensuring Victron client config node exists after a delay");
+            ensureConfigNodeExists();
+        }, 3000);
 
         RED.nodes.registerType(nodeType, {
             category: 'Victron Energy',
