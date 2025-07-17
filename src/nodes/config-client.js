@@ -13,6 +13,13 @@ module.exports = function (RED) {
      */
   let globalClient = null
 
+  const enablePolling = false // TODO: see below
+  globalClient = new VictronClient(
+    process.env.NODE_RED_DBUS_ADDRESS,
+    { enablePolling }
+  )
+  globalClient.connect()
+
   /**
      * An endpoint for nodes to request services from - returns either a single service, or
      * all available services depending whether the requester gives the service parameter
