@@ -21,6 +21,10 @@
             "victron-nodes": "./src/nodes/victron-nodes.js",
             "victron-virtual": "./src/nodes/victron-virtual.js"
         },
+        "plugins": {
+            "bootstrap-plugin": "./src/nodes/bootstrap-plugin.js",
+            "bootstrap-html": "./src/nodes/bootstrap-plugin.html"
+        },
         "version": ">=3.0.2"
     },
     "devDependencies": {
