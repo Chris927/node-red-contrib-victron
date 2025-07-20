@@ -30,8 +30,8 @@ class SystemConfiguration {
         Object.keys(cachedService).forEach((dbusInterface) => {
           const cachedPaths = cachedService[dbusInterface]
           let name = cachedPaths['/CustomName'] ||
-                        cachedPaths['/ProductName'] ||
-                        _.get(utils.DEFAULT_SERVICE_NAMES, [nodeName, dbusService], dbusInterface)
+            cachedPaths['/ProductName'] ||
+            _.get(utils.DEFAULT_SERVICE_NAMES, [nodeName, dbusService], dbusInterface)
 
           if (dbusInterface.startsWith('com.victronenergy.system')) {
             name = 'Venus system'
@@ -52,9 +52,9 @@ class SystemConfiguration {
                 (expandedPathObj.path !== '/Ac/In/2/CurrentLimit' || _.get(cachedPaths, '/Ac/In/2/CurrentLimitIsAdjustable', 1))
               )) &&
               (!expandedPathObj.mode ||
-              expandedPathObj.mode === 'both' ||
-              (isOutput && expandedPathObj.mode === 'output') ||
-              (!isOutput && expandedPathObj.mode === 'input'))
+                expandedPathObj.mode === 'both' ||
+                (isOutput && expandedPathObj.mode === 'output') ||
+                (!isOutput && expandedPathObj.mode === 'input'))
             )
 
             return pathAcc.concat(filtered)
@@ -78,32 +78,50 @@ class SystemConfiguration {
   getRelayServices () {
     // Build a relay object representing the relay node settings in node-red UI
     const buildRelayService = (service, paths) => {
+      console.warn(`Building relay service for ${service} with paths: ${JSON.stringify(paths)}`)
       const pathObjects = paths.map(p => {
         const svc = service.split('.')[2].split('/')[0] // com.victronenergy.system => system
 
-        const relayObject = _.find(_.get(utils.SERVICES, ['relay', svc]), { path: p })
+        // if (p === '/Relay/0/State') {
+        //   p = '/Relay/{relay}/State' // TODO: hack for testing
+        // }
 
-        if (!relayObject) { console.error(`A relay path specification '${p}' is missing in services.json for service ${svc}.`) }
+        console.warn(`Building relay service for ${svc} with path ${p}`)
 
-        // special case for system relay
-        if (relayObject && service.startsWith('com.victronenergy.system') && p.startsWith('/Relay/0')) {
-          const systemRelayFunction = this.cache['com.victronenergy.settings']['/Settings/Relay/Function']
-          if (systemRelayFunction !== 2) { // manual
-            relayObject.disabled = true
-            relayObject.warning = utils.RELAY_MODE_WARNING(utils.RELAY_FUNCTIONS[systemRelayFunction])
-          } else {
-            relayObject.disabled = false
-            delete (relayObject.warning)
+        // iterate over utils.SERVICES.relay[svc], and expand
+        try {
+          for (const wildcarded of (utils.SERVICES.relay?.[svc] || [])) {
+            const expanded = utils.expandWildcardPaths(wildcarded, this.cache[service], svc)
+            const relayObject = _.find(expanded, { path: p })
+            if (relayObject) {
+              console.warn(`Found relay object for service ${service} with path ${p}: ${JSON.stringify(relayObject)}`)
+              // TODO: we should use this for the rest of the logic
+              if (service.startsWith('com.victronenergy.system') && p.startsWith('/Relay/0')) {
+                const systemRelayFunction = this.cache['com.victronenergy.settings']['/Settings/Relay/Function']
+                if (systemRelayFunction !== 2) { // manual
+                  relayObject.disabled = true
+                  relayObject.warning = utils.RELAY_MODE_WARNING(utils.RELAY_FUNCTIONS[systemRelayFunction])
+                } else {
+                  relayObject.disabled = false
+                  delete (relayObject.warning)
+                }
+              }
+              return relayObject
+            }
           }
+          // if nothing found, return null
+          return null
+        } catch (error) {
+          console.error(`Error expanding relay paths for service ${svc} with path ${p}:`, error)
+          return null
         }
-        return relayObject
       })
 
       const name = service.startsWith('com.victronenergy.system')
         ? 'Venus device'
         : this.cache[service]['/CustomName'] ||
-                this.cache[service]['/ProductName'] ||
-                service.split('.').pop()
+        this.cache[service]['/ProductName'] ||
+        service.split('.').pop()
 
       const deviceInstance = this.cache[service]['/DeviceInstance'] || service.split('/')[1] || '-'
 
@@ -131,7 +149,7 @@ class SystemConfiguration {
     Object.keys(cachedService).forEach((dbusInterface) => {
       const cachedPaths = cachedService[dbusInterface]
       let name = cachedPaths['/CustomName'] ||
-                        cachedPaths['/ProductName']
+        cachedPaths['/ProductName']
       if (!name) {
         name = dbusInterface.split('/')[0]
       }
