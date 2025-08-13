@@ -130,7 +130,13 @@ module.exports = function (RED) {
       }
 
       if (this.client && this.client.client && this.client.client.connected) {
-        this.client.client.getValue(this.service, this.path)
+        // observation: this.service has value 'com.victronenergy.system/0'. this.service becomes 
+        // the 'destination' in the dbus message.
+        // In other calls, the value for system is 'com.victronenergy.systems' (without the /0).
+        // By changing the first parameter to this.service.split('/')[0], we remove the /0,
+        // and we do not get disconnected from the dbus, and the getvalue call works.
+        // TODO: not a real solution yet.
+        this.client.client.getValue(this.service.split('/')[0], this.path)
       }
 
       this.on('close', function (done) {
