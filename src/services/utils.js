@@ -8,7 +8,7 @@ const _ = require('lodash')
 /**
  * Calculates a 'semi-random' identifier which is used in e.g. tracking node connection statuses.
  */
-function UUID () {
+function UUID() {
   return Math.floor((1 + Math.random()) * 0x10000000).toString(16)
 }
 
@@ -126,7 +126,7 @@ const WILDCARD_MAPPINGS = {
  * @param {string} serviceName - Service name for wildcard mappings
  * @returns {Array} Array of expanded path objects
  */
-function expandWildcardPaths (pathObj, cachedPaths, serviceName) {
+function expandWildcardPaths(pathObj, cachedPaths, serviceName) {
   if (!pathObj.path.includes('{')) {
     // No wildcards, return original if it exists
     return _.has(cachedPaths, pathObj.path) ? [pathObj] : []
@@ -224,7 +224,7 @@ const TEMPLATE = (service, name, deviceInstance, paths) => {
  * Shown in the UI if the system relay mode is set to any other than 'manual'
  */
 const RELAY_MODE_WARNING = (func) =>
-    `The relay is configured for <strong>${func}</strong> function. Please navigate to Settings > Integrations > Relays and change it to manual.`
+  `The relay is configured for <strong>${func}</strong> function. Please navigate to Settings > Integrations > Relays and change it to manual.`
 
 /**
  * All possible system relay functions
@@ -250,6 +250,14 @@ const STATUS = {
   SERVICE_MIGRATE: 8
 }
 
+function mapCacheValueToJsonResponseValue(value) {
+}
+
+function mapCacheToJsonResponse(cache) {
+  // naive implementation at first
+  return JSON.stringify(cache);
+}
+
 module.exports = {
   CONNECTED,
   DISCONNECTED,
@@ -262,5 +270,7 @@ module.exports = {
   UUID,
   DEFAULT_SERVICE_NAMES,
   WILDCARD_MAPPINGS,
-  expandWildcardPaths
+  expandWildcardPaths,
+  mapCacheValueToJsonResponseValue,
+  mapCacheToJsonResponse
 }
