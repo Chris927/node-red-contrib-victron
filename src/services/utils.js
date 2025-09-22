@@ -250,6 +250,13 @@ const STATUS = {
   SERVICE_MIGRATE: 8
 }
 
+/**
+  * Maps a cache value to a JSON-serializable value.
+  * - Strings, numbers, booleans, and null are returned as-is.
+  * - Dates are converted to ISO strings.
+  * - Objects and arrays are stringified.
+  * - Other types (e.g., functions) are converted to their string representation.
+*/
 function mapCacheValueToJsonResponseValue (value) {
   if (value === null) return null
   if (value instanceof Date) return value.toISOString()
@@ -258,6 +265,9 @@ function mapCacheValueToJsonResponseValue (value) {
   return value
 }
 
+/**
+  * Maps the cache (see VictronClient.system.cache) to a JSON string.
+  */
 function mapCacheToJsonResponse (cache) {
   const result = {}
   for (const [device, value] of Object.entries(cache)) {
