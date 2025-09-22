@@ -8,7 +8,7 @@ const _ = require('lodash')
 /**
  * Calculates a 'semi-random' identifier which is used in e.g. tracking node connection statuses.
  */
-function UUID() {
+function UUID () {
   return Math.floor((1 + Math.random()) * 0x10000000).toString(16)
 }
 
@@ -126,7 +126,7 @@ const WILDCARD_MAPPINGS = {
  * @param {string} serviceName - Service name for wildcard mappings
  * @returns {Array} Array of expanded path objects
  */
-function expandWildcardPaths(pathObj, cachedPaths, serviceName) {
+function expandWildcardPaths (pathObj, cachedPaths, serviceName) {
   if (!pathObj.path.includes('{')) {
     // No wildcards, return original if it exists
     return _.has(cachedPaths, pathObj.path) ? [pathObj] : []
@@ -250,7 +250,7 @@ const STATUS = {
   SERVICE_MIGRATE: 8
 }
 
-function mapCacheValueToJsonResponseValue(value) {
+function mapCacheValueToJsonResponseValue (value) {
   if (value === null) return null
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'object') return JSON.stringify(value)
@@ -258,7 +258,7 @@ function mapCacheValueToJsonResponseValue(value) {
   return value
 }
 
-function mapCacheToJsonResponse(cache) {
+function mapCacheToJsonResponse (cache) {
   const result = {}
   for (const [device, value] of Object.entries(cache)) {
     result[device] = {}
@@ -266,9 +266,8 @@ function mapCacheToJsonResponse(cache) {
       result[device][path] = mapCacheValueToJsonResponseValue(pathValue)
     }
   }
-  return JSON.stringify(result);
+  return JSON.stringify(result)
 }
-
 
 module.exports = {
   CONNECTED,

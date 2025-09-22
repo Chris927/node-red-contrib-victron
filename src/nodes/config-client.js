@@ -1,4 +1,4 @@
-module.exports = function(RED) {
+module.exports = function (RED) {
   'use strict'
 
   const utils = require('../services/utils.js')
@@ -60,7 +60,7 @@ module.exports = function(RED) {
      * It keeps track of incoming status messages and updates
      * listening nodes' status in the UI accordingly.
      */
-  function ConfigVictronClient(config) {
+  function ConfigVictronClient (config) {
     debug('ConfigVictronClient constructor called')
     debug('NODE_RED_DBUS_ADDRESS:', process.env.NODE_RED_DBUS_ADDRESS)
 
