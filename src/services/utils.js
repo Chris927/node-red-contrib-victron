@@ -251,12 +251,24 @@ const STATUS = {
 }
 
 function mapCacheValueToJsonResponseValue(value) {
+  if (value === null) return null
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'object') return JSON.stringify(value)
+  if (typeof value === 'function') return value.toString()
+  return value
 }
 
 function mapCacheToJsonResponse(cache) {
-  // naive implementation at first
-  return JSON.stringify(cache);
+  const result = {}
+  for (const [device, value] of Object.entries(cache)) {
+    result[device] = {}
+    for (const [path, pathValue] of Object.entries(value)) {
+      result[device][path] = mapCacheValueToJsonResponseValue(pathValue)
+    }
+  }
+  return JSON.stringify(result);
 }
+
 
 module.exports = {
   CONNECTED,
