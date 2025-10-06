@@ -554,8 +554,8 @@ module.exports = function (RED) {
                 voltage = Number(config.battery_voltage_preset)
               } else if (config.battery_voltage_preset === 'custom') {
                 if (config.battery_voltage_custom != null &&
-                    config.battery_voltage_custom !== '' &&
-                    !isNaN(Number(config.battery_voltage_custom))) {
+                  config.battery_voltage_custom !== '' &&
+                  !isNaN(Number(config.battery_voltage_custom))) {
                   voltage = Number(config.battery_voltage_custom)
                 }
                 // If custom is selected but no valid value provided, use default
@@ -936,16 +936,12 @@ module.exports = function (RED) {
                 iface[typeKey] = 6
 
                 // Get labels from config - should be simple key-value object
-                const labelData = config[`switch_${i}_label`] || '{}'
-                let labelsJson = '{}'
+                const labels = JSON.parse(config[`switch_${i}_label`] || '[]')
                 let firstKey = ''
 
                 try {
-                  const keyValueObj = JSON.parse(labelData)
-                  const keys = Object.keys(keyValueObj)
-                  if (keys.length > 0) {
-                    labelsJson = labelData // Use the same format
-                    firstKey = keys[0] // Default to first key
+                  if (labels.length > 0) {
+                    firstKey = labels[0] // Default to first key
                   }
                 } catch (e) {
                   console.error(`Invalid JSON in switch ${i} labels:`, e)
@@ -968,10 +964,10 @@ module.exports = function (RED) {
 
                 // Labels field stores the key-value JSON directly
                 ifaceDesc.properties[labelsKey] = {
-                  type: 's',
+                  type: 'as',
                   format: (v) => v || '{}'
                 }
-                iface[labelsKey] = labelsJson
+                iface[labelsKey] = labels
               }
 
               if (switchType === 7 || switchType === 8) { // Basic slider or Numeric input
