@@ -402,20 +402,42 @@ module.exports = function(RED) {
         return
       }
 
+      function failAndDone(text, done) {
+        node.status({
+          fill: 'red',
+          shape: 'dot',
+          text: text
+        });
+        return done();
+      }
+
+      function successAndDone(text, done) {
+        node.status({
+          fill: 'green',
+          shape: 'dot',
+          text: text
+        });
+        return done();
+      }
+
       if (msg.payload.s2Signal !== undefined) {
-        node.warn('About to send s2Signal', msg.payload)
-        if (!msg.payload.cem_id || !msg.payload.message) {
-          node.status({
-            fill: 'red',
-            shape: 'dot',
-            text: 's2Signal requires cem_id and message'
-          })
-          done()
-          return
+        console.warn('About to send s2Signal', msg.payload)
+        switch (msg.payload.s2Signal) {
+          case 'Message':
+            if (!msg.payload.cem_id || !msg.payload.message) {
+              return failAndDone('s2Signal "Message" requires cem_id and message', done)
+            }
+            node.emitS2Signal(msg.payload.s2Signal, [msg.payload.cem_id, JSON.stringify(msg.payload.message)])
+            return successAndDone(`Sent s2Signal "Message" to CEM ID ${msg.payload.cem_id}`, done)
+          case 'Disconnect':
+            if (!msg.payload.cem_id || !msg.payload.reason) {
+              return failAndDone('s2Signal "Disconnect" requires cem_id and reason', done);
+            }
+            node.emitS2Signal(msg.payload.s2Signal, [msg.payload.cem_id, msg.payload.reason])
+            return successAndDone(`Sent s2Signal "Disconnect" to CEM ID ${msg.payload.cem_id}`, done)
+          default:
+            return failAndDone(`s2Signal "${msg.payload.s2Signal}" not implemented`, done);
         }
-        node.emitS2Signal(msg.payload.s2Signal, [msg.payload.cem_id, JSON.stringify(msg.payload.message)])
-        done()
-        return
       }
 
       try {
