@@ -402,6 +402,22 @@ module.exports = function(RED) {
         return
       }
 
+      if (msg.payload.s2Signal !== undefined) {
+        node.warn('About to send s2Signal', msg.payload)
+        if (!msg.payload.cem_id || !msg.payload.message) {
+          node.status({
+            fill: 'red',
+            shape: 'dot',
+            text: 's2Signal requires cem_id and message'
+          })
+          done()
+          return
+        }
+        node.emitS2Signal(msg.payload.s2Signal, [msg.payload.cem_id, JSON.stringify(msg.payload.message)])
+        done()
+        return
+      }
+
       try {
         debugInput(`Setting values locally for node ${node.id}:`, msg.payload)
         node.setValuesLocally(msg.payload)
@@ -1158,16 +1174,26 @@ module.exports = function(RED) {
               // What needs to be done here is add the dbus interface for com.victronenergy.s2
               ifaceDesc.__enableS2 = true
               ifaceDesc.__s2Handlers = {
-                Connect: function(cemId, timeout, cb) {
+                Connect: async function(cemId, timeout) {
                   // option 1: call output 1 of the node
                   // option 2: convert into message payload
-                  cb(null, {
-                    payload: {
-                      command: 'connect',
-                      cemId: cemId,
-                      timeout: timeout
-                    }
-                  })
+                  node.send([
+                    {
+                      payload: {
+                        command: 'connect',
+                        cemId: cemId,
+                        timeout: timeout
+                      }
+                    },
+                  ])
+                  return true
+                  // cb(null, {
+                  //   payload: {
+                  //     command: 'connect',
+                  //     cemId: cemId,
+                  //     timeout: timeout
+                  //   }
+                  // })
                 },
                 Disconnect: function(cemId, cb) {
                   // option 1: call output 2 of the node
@@ -1407,10 +1433,12 @@ module.exports = function(RED) {
         const {
           removeSettings,
           getValue,
-          setValuesLocally
+          setValuesLocally,
+          emitS2Signal,
         } = addVictronInterfaces(usedBus, ifaceDesc, iface, /* add_defaults */ true, emitCallback)
 
         node.setValuesLocally = setValuesLocally
+        node.emitS2Signal = emitS2Signal
 
         // If there are pending calls, process them now
         node.pendingCallsToSetValuesLocally.forEach(([msg, done]) => {
