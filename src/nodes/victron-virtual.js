@@ -292,7 +292,7 @@ const properties = {
   }
 }
 
-function getIfaceDesc(dev) {
+function getIfaceDesc (dev) {
   const actualDev = dev === 'generator' ? 'genset' : dev
   if (!properties[actualDev]) {
     return {}
@@ -315,17 +315,17 @@ function getIfaceDesc(dev) {
   return result
 }
 
-function getIface(dev) {
+function getIface (dev) {
   const actualDev = dev === 'generator' ? 'genset' : dev
   if (!properties[actualDev]) {
     return {
-      emit: function() {
+      emit: function () {
       }
     }
   }
 
   const result = {
-    emit: function() {
+    emit: function () {
     }
   }
 
@@ -348,13 +348,13 @@ function getIface(dev) {
   return result
 }
 
-module.exports = function(RED) {
+module.exports = function (RED) {
   // Shared state across all instances
   let hasRunOnce = false
   let globalTimeoutHandle = null
   const nodeInstances = new Set()
 
-  function VictronVirtualNode(config) {
+  function VictronVirtualNode (config) {
     RED.nodes.createNode(this, config)
     const node = this
 
@@ -370,7 +370,7 @@ module.exports = function(RED) {
     node.retryOnConnectionEnd = true
     node.pendingCallsToSetValuesLocally = []
 
-    function handleInput(msg, done) {
+    function handleInput (msg, done) {
       // Send passthrough message FIRST, before any validation
       const outputs = [msg]
       // Fill remaining outputs with null
@@ -402,22 +402,22 @@ module.exports = function(RED) {
         return
       }
 
-      function failAndDone(text, done) {
+      function failAndDone (text, done) {
         node.status({
           fill: 'red',
           shape: 'dot',
-          text: text
-        });
-        return done();
+          text
+        })
+        return done()
       }
 
-      function successAndDone(text, done) {
+      function successAndDone (text, done) {
         node.status({
           fill: 'green',
           shape: 'dot',
-          text: text
-        });
-        return done();
+          text
+        })
+        return done()
       }
 
       if (msg.payload.s2Signal !== undefined) {
@@ -431,12 +431,12 @@ module.exports = function(RED) {
             return successAndDone(`Sent s2Signal "Message" to CEM ID ${msg.payload.cem_id}`, done)
           case 'Disconnect':
             if (!msg.payload.cem_id || !msg.payload.reason) {
-              return failAndDone('s2Signal "Disconnect" requires cem_id and reason', done);
+              return failAndDone('s2Signal "Disconnect" requires cem_id and reason', done)
             }
             node.emitS2Signal(msg.payload.s2Signal, [msg.payload.cem_id, msg.payload.reason])
             return successAndDone(`Sent s2Signal "Disconnect" to CEM ID ${msg.payload.cem_id}`, done)
           default:
-            return failAndDone(`s2Signal "${msg.payload.s2Signal}" not implemented`, done);
+            return failAndDone(`s2Signal "${msg.payload.s2Signal}" not implemented`, done)
         }
       }
 
@@ -461,7 +461,7 @@ module.exports = function(RED) {
       }
     }
 
-    this.on('input', function(msg, _send, done) {
+    this.on('input', function (msg, _send, done) {
       if (!node.setValuesLocally) {
         // we cannot call setValuesLocally yet, so we queue the message
         node.pendingCallsToSetValuesLocally.push([msg, done])
@@ -474,7 +474,7 @@ module.exports = function(RED) {
       handleInput(msg, done)
     })
 
-    function instantiateDbus(self) {
+    function instantiateDbus (self) {
       debug('instantiateDbus called for node', self.id, nodeInstances)
       // Connect to the dbus
       if (self.address) {
@@ -510,7 +510,7 @@ module.exports = function(RED) {
 
       let retrying = false
 
-      function retryConnectionDelayed() {
+      function retryConnectionDelayed () {
         if (retrying) {
           debugConnection('Already retrying DBus connection, skipping this retry.')
           return
@@ -567,7 +567,7 @@ module.exports = function(RED) {
         return
       }
 
-      async function callAddSettingsWithRetry(bus, settings, maxRetries = 10) {
+      async function callAddSettingsWithRetry (bus, settings, maxRetries = 10) {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             const result = await addSettings(bus, settings)
@@ -598,7 +598,7 @@ module.exports = function(RED) {
         }
       }
 
-      async function proceed(usedBus) {
+      async function proceed (usedBus) {
         // First, we need to create our interface description (here we will only expose method calls)
         const ifaceDesc = {
           name: interfaceName,
@@ -1196,46 +1196,46 @@ module.exports = function(RED) {
               // What needs to be done here is add the dbus interface for com.victronenergy.s2
               ifaceDesc.__enableS2 = true
               ifaceDesc.__s2Handlers = {
-                Connect: async function(cemId, timeout) {
+                Connect: async function (cemId, timeout) {
                   // option 1: call output 1 of the node
                   // option 2: convert into message payload
                   node.send([
                     {
                       payload: {
                         command: 'Connect',
-                        cemId: cemId,
+                        cemId,
                         keepAliveInterval: timeout
                       }
-                    },
+                    }
                   ])
                   return true // TODO: hardcoded, what other options do we have?
                 },
-                Disconnect: function(cemId) {
+                Disconnect: function (cemId) {
                   // option 1: call output 2 of the node
                   // option 2:
                   node.send([{
                     payload: {
                       command: 'Disconnect',
-                      cemId: cemId
+                      cemId
                     }
-                  }]);
+                  }])
                 },
-                Message: function(cemId, message) {
+                Message: function (cemId, message) {
                   node.send([{
                     payload: {
                       command: 'Message',
-                      cemId: cemId,
-                      message: message
+                      cemId,
+                      message
                     }
-                  }]);
+                  }])
                 },
-                KeepAlive: function(cemId) {
+                KeepAlive: function (cemId) {
                   node.send([{
                     payload: {
                       command: 'KeepAlive',
-                      cemId: cemId
+                      cemId
                     }
-                  }]);
+                  }])
                   return true // TODO: hardcoded, what other options do we have?
                 }
               }
@@ -1356,10 +1356,10 @@ module.exports = function(RED) {
           }
         })
 
-        // TODO: S2: Should we rename this? 
-        // We need to add a emitCallbackS2 for S2-related property changes 
+        // TODO: S2: Should we rename this?
+        // We need to add a emitCallbackS2 for S2-related property changes
         // to be able to react to imocoming connection requests and messages.
-        function emitCallback(event, data) {
+        function emitCallback (event, data) {
           if (event !== 'ItemsChanged') {
             return
           }
@@ -1467,7 +1467,7 @@ module.exports = function(RED) {
           removeSettings,
           getValue,
           setValuesLocally,
-          emitS2Signal,
+          emitS2Signal
         } = addVictronInterfaces(usedBus, ifaceDesc, iface, /* add_defaults */ true, emitCallback)
 
         node.setValuesLocally = setValuesLocally
@@ -1495,7 +1495,7 @@ module.exports = function(RED) {
         nodeInstances.add(node)
 
         if (!hasRunOnce && globalTimeoutHandle === null) {
-          globalTimeoutHandle = setTimeout(async function() {
+          globalTimeoutHandle = setTimeout(async function () {
             debug('Checking for old virtual devices')
             const getValueResult = await getValue({
               path: '/Settings/Devices',
@@ -1551,7 +1551,7 @@ module.exports = function(RED) {
 
     instantiateDbus(this)
 
-    node.on('close', function(done) {
+    node.on('close', function (done) {
       nodeInstances.delete(node)
 
       // Release the DBus service name before closing connection
@@ -1576,7 +1576,7 @@ module.exports = function(RED) {
         finishClose()
       }
 
-      function finishClose() {
+      function finishClose () {
         // TODO: previously, we called end() on the connection only if no nodeInstances
         // were left. Calling end() here resolves an issue with the VictronDbusListener
         // not responding to ItemsChanged signals any more after a redeploy here:
