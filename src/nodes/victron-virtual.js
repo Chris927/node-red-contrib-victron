@@ -1202,31 +1202,42 @@ module.exports = function(RED) {
                   node.send([
                     {
                       payload: {
-                        command: 'connect',
+                        command: 'Connect',
                         cemId: cemId,
-                        timeout: timeout
+                        keepAliveInterval: timeout
                       }
                     },
                   ])
-                  return true
-                  // cb(null, {
-                  //   payload: {
-                  //     command: 'connect',
-                  //     cemId: cemId,
-                  //     timeout: timeout
-                  //   }
-                  // })
+                  return true // TODO: hardcoded, what other options do we have?
                 },
-                Disconnect: function(cemId, cb) {
+                Disconnect: function(cemId) {
                   // option 1: call output 2 of the node
                   // option 2:
-                  cb(null, {
+                  node.send([{
                     payload: {
-                      command: 'disconnect',
+                      command: 'Disconnect',
                       cemId: cemId
                     }
-                  })
+                  }]);
                 },
+                Message: function(cemId, message) {
+                  node.send([{
+                    payload: {
+                      command: 'Message',
+                      cemId: cemId,
+                      message: message
+                    }
+                  }]);
+                },
+                KeepAlive: function(cemId) {
+                  node.send([{
+                    payload: {
+                      command: 'KeepAlive',
+                      cemId: cemId
+                    }
+                  }]);
+                  return true // TODO: hardcoded, what other options do we have?
+                }
               }
             }
 
