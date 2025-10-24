@@ -1193,6 +1193,33 @@ module.exports = function (RED) {
             // Enable S2 support if configured (TODO: implement more detailed S2 behavior)
             if (config.enable_s2support) {
               console.warn('S2 support for acload virtual device is not yet implemented.')
+
+              // additional properties
+              const additionalS2Properties = {
+                'Devices/0/S2/Active': { type: 'b' },
+                'Devices/0/S2/ConsumerType': { type: 'i' },
+                'Devices/0/S2/OffHysteresis': { type: 'i' },
+                'Devices/0/S2/OnHysteresis': { type: 'i' },
+                'Devices/0/S2/PowerSetting': { type: 'i' },
+                'Devices/0/S2/Priority': { type: 'd', format: (v) => v != null ? v.toFixed(0) : '-' },
+                'Devices/0/S2': { type: 'd' }
+              }
+
+              const s2Defaults = {
+                'Devices/0/S2/Active': false,
+                'Devices/0/S2/ConsumerType': 0,
+                'Devices/0/S2/OffHysteresis': 30,
+                'Devices/0/S2/OnHysteresis': 30,
+                'Devices/0/S2/PowerSetting': 1000,
+                'Devices/0/S2/Priority': 0,
+                'Devices/0/S2': null
+              }
+
+              Object.entries(additionalS2Properties).forEach(([key, desc]) => {
+                ifaceDesc.properties[key] = desc
+                iface[key] = s2Defaults[key]
+              })
+
               // What needs to be done here is add the dbus interface for com.victronenergy.s2
               ifaceDesc.__enableS2 = true
               ifaceDesc.__s2Handlers = {
