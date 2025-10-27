@@ -1196,7 +1196,7 @@ module.exports = function (RED) {
 
               // additional properties
               const additionalS2Properties = {
-                'Devices/0/S2/Active': { type: 'b' },
+                'Devices/0/S2/Active': { type: 'i' },
                 'Devices/0/S2/ConsumerType': { type: 'i' },
                 'Devices/0/S2/OffHysteresis': { type: 'i' },
                 'Devices/0/S2/OnHysteresis': { type: 'i' },
@@ -1206,7 +1206,7 @@ module.exports = function (RED) {
               }
 
               const s2Defaults = {
-                'Devices/0/S2/Active': false,
+                'Devices/0/S2/Active': 0,
                 'Devices/0/S2/ConsumerType': 0,
                 'Devices/0/S2/OffHysteresis': 30,
                 'Devices/0/S2/OnHysteresis': 30,
