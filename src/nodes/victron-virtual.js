@@ -1223,9 +1223,23 @@ module.exports = function (RED) {
               // What needs to be done here is add the dbus interface for com.victronenergy.s2
               ifaceDesc.__enableS2 = true
               ifaceDesc.__s2Handlers = {
-                Connect: async function (cemId, timeout) {
-                  // option 1: call output 1 of the node
-                  // option 2: convert into message payload
+                Connect: function (cemId, timeout) {
+                  console.log('Connect received for CEM ID:', cemId, 'timeout', timeout)
+                  /* The below logic is now in package dbus-victron-virtual, branch s2-support-experimental
+                  const { __s2state: state } = node
+                  if (state.connectedCemId === null) {
+                    // first connection
+                    state.connectedCemId = cemId
+                    state.keepAliveTimeout = timeout
+                    state.lastSeen = new Date().getTime()
+                  } else if (state.connectedCemId === cemId) {
+                    // it's a reconnect, appect
+                    state.keepAliveTimeout = timeout
+                    state.lastSeen = new Date().getTime()
+                  } else {
+                    console.warn('CEM ID', cemId, 'is trying to connect, but CEM ID', state.connectedCemId, 'is already connected. Rejecting.')
+                    return false
+                  } */
                   node.send([
                     {
                       payload: {
@@ -1235,11 +1249,8 @@ module.exports = function (RED) {
                       }
                     }
                   ])
-                  return true // TODO: hardcoded, what other options do we have?
                 },
                 Disconnect: function (cemId) {
-                  // option 1: call output 2 of the node
-                  // option 2:
                   node.send([{
                     payload: {
                       command: 'Disconnect',
@@ -1257,13 +1268,13 @@ module.exports = function (RED) {
                   }])
                 },
                 KeepAlive: function (cemId) {
+                  console.log('KeepAlive received for CEM ID:', cemId)
                   node.send([{
                     payload: {
                       command: 'KeepAlive',
                       cemId
                     }
                   }])
-                  return true // TODO: hardcoded, what other options do we have?
                 }
               }
             }
@@ -1367,6 +1378,10 @@ module.exports = function (RED) {
           if (retCode === 1 || retCode === 3) {
             debug(`Successfully requested service name "${serviceName}" (${retCode})`)
             // Store serviceName on node for cleanup during close
+            if (retCode === 3) {
+              console.warn(`Service name "${serviceName}" for ${config.device} already exists on the bus, this may result in undesired behavior.`)
+              node.warn(`Service name "${serviceName}" for ${config.device} already exists on the bus, this may result in undesired behavior.`)
+            }
             node.serviceName = serviceName
           } else {
             /* Other return codes means various errors, check here
@@ -1387,6 +1402,8 @@ module.exports = function (RED) {
         // We need to add a emitCallbackS2 for S2-related property changes
         // to be able to react to imocoming connection requests and messages.
         function emitCallback (event, data) {
+          // we could use node.context().set('bla', 42) to set (and get) state, but state disappears on redeploy
+          // for global context: node.context().global.set('bla', 43)
           if (event !== 'ItemsChanged') {
             return
           }
