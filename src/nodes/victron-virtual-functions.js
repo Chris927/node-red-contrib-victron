@@ -658,6 +658,25 @@ export function validateSwitchConfig () {
   return true
 }
 
+const DEVICE_TYPE_TO_NUM_OUTPUTS = {
+  switch: (config) => {
+    // determine outputs based on type
+    const switchType = config?.switch_1_type
+
+    // Parse switch type (handle both string and number)
+    const typeKey = switchType !== undefined ? parseInt(switchType, 10) : victronVirtualConstantsExports.SWITCH_TYPE_MAP.TOGGLE
+
+    // Look up outputs from config, default to 2 (passthrough + state)
+    return victronVirtualConstantsExports.SWITCH_OUTPUT_CONFIG[typeKey] || 2
+  },
+  acload: (config) => {
+    if (config.enable_s2support) {
+      return 2 // passthrough + signals
+    }
+    return 1
+  }
+}
+
 /**
  * Calculate the number of outputs for a virtual device
  * @param {string} device - Device type (e.g., 'battery', 'switch', 'gps')
@@ -665,19 +684,11 @@ export function validateSwitchConfig () {
  * @returns {number} Number of outputs (minimum 1)
  */
 export function calculateOutputs (device, config) {
-  // Default to 1 output (passthrough) for all non-switch devices
-  if (!device || device !== 'switch') {
+  if (DEVICE_TYPE_TO_NUM_OUTPUTS[device]) {
+    return DEVICE_TYPE_TO_NUM_OUTPUTS[device](config)
+  } else {
     return 1
   }
-
-  // For switches, determine outputs based on type
-  const switchType = config?.switch_1_type
-
-  // Parse switch type (handle both string and number)
-  const typeKey = switchType !== undefined ? parseInt(switchType, 10) : SWITCH_TYPE_MAP.TOGGLE
-
-  // Look up outputs from config, default to 2 (passthrough + state)
-  return SWITCH_OUTPUT_CONFIG[typeKey] || 2
 }
 
 /**
@@ -688,7 +699,8 @@ export function calculateOutputs (device, config) {
 export function updateOutputs (context) {
   const device = context.device
   const config = {
-    switch_1_type: context.switch_1_type
+    switch_1_type: context.switch_1_type,
+    enable_s2support: context.enable_s2support
   }
   const outputs = calculateOutputs(device, config)
 
