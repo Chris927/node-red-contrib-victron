@@ -50,7 +50,7 @@
   	return victronVirtualConstants;
   }
 
-  var victronVirtualConstantsExports = requireVictronVirtualConstants();
+  var victronVirtualConstantsExports$1 = requireVictronVirtualConstants();
 
   /* global $ */
 
@@ -60,7 +60,7 @@
     { id: 'group', type: 'text', placeholder: 'Group', title: 'Group', style: 'width:120px;', tooltip: 'Initial group for the switch. If the group gets changed in the gui after initial deploy, the value set there will be persisted (also on re-deploy).' }
   ];
 
-  function checkGeneratorType () {
+  function checkGeneratorType() {
     const generatorType = $('select#node-input-generator_type').val();
     if (generatorType === 'dc') {
       $('.dc-generator-only').show();
@@ -72,10 +72,10 @@
   }
 
   const SWITCH_TYPE_CONFIGS = {
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.MOMENTARY]: { label: 'Momentary', fields: [...COMMON_SWITCH_FIELDS] },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.TOGGLE]: { label: 'Toggle', fields: [...COMMON_SWITCH_FIELDS] },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.DIMMABLE]: { label: 'Dimmable', fields: [...COMMON_SWITCH_FIELDS] },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.TEMPERATURE_SETPOINT]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.MOMENTARY]: { label: 'Momentary', fields: [...COMMON_SWITCH_FIELDS] },
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.TOGGLE]: { label: 'Toggle', fields: [...COMMON_SWITCH_FIELDS] },
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.DIMMABLE]: { label: 'Dimmable', fields: [...COMMON_SWITCH_FIELDS] },
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.TEMPERATURE_SETPOINT]: {
       label: 'Temperature setpoint',
       fields: [
         ...COMMON_SWITCH_FIELDS,
@@ -84,14 +84,14 @@
         { id: 'step', type: 'number', placeholder: 'Step (°C)', title: 'Step (°C)', style: 'width:80px;' }
       ]
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.STEPPED]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.STEPPED]: {
       label: 'Stepped switch',
       fields: [
         ...COMMON_SWITCH_FIELDS,
         { id: 'max', type: 'number', placeholder: 'Max steps', title: 'Max steps', style: 'width:80px;', min: 1, max: 7 }
       ]
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.DROPDOWN]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.DROPDOWN]: {
       label: 'Dropdown',
       fields: [
         ...COMMON_SWITCH_FIELDS,
@@ -106,7 +106,7 @@
         }
       ]
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.BASIC_SLIDER]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.BASIC_SLIDER]: {
       label: 'Basic slider',
       fields: [
         ...COMMON_SWITCH_FIELDS,
@@ -116,7 +116,7 @@
         { id: 'unit', type: 'text', placeholder: 'Unit', title: 'Unit', style: 'width:80px;' }
       ]
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.NUMERIC_INPUT]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.NUMERIC_INPUT]: {
       label: 'Numeric input',
       fields: [
         ...COMMON_SWITCH_FIELDS,
@@ -126,18 +126,18 @@
         { id: 'unit', type: 'text', placeholder: 'Unit', title: 'Unit (center)', style: 'width:120px;' }
       ]
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.THREE_STATE]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.THREE_STATE]: {
       label: 'Three-state switch',
       fields: [...COMMON_SWITCH_FIELDS]
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.BILGE_PUMP]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.BILGE_PUMP]: {
       label: 'Bilge pump control',
       fields: [...COMMON_SWITCH_FIELDS]
     }
   };
 
   const SWITCH_TYPE_DOCS = {
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.MOMENTARY]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.MOMENTARY]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -155,7 +155,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/momentary.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.TOGGLE]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.TOGGLE]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -173,7 +173,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/toggle.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.DIMMABLE]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.DIMMABLE]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -193,7 +193,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/dimmable.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.TEMPERATURE_SETPOINT]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.TEMPERATURE_SETPOINT]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -218,7 +218,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/temp_setpoint.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.STEPPED]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.STEPPED]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -239,7 +239,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/stepped.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.DROPDOWN]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.DROPDOWN]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -258,7 +258,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/dropdown.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.BASIC_SLIDER]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.BASIC_SLIDER]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -280,7 +280,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/basic_slider.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.NUMERIC_INPUT]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.NUMERIC_INPUT]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -302,7 +302,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/numeric_input.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.THREE_STATE]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.THREE_STATE]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -320,7 +320,7 @@
     `,
       img: '/resources/@victronenergy/node-red-contrib-victron/docs/three_state.png'
     },
-    [victronVirtualConstantsExports.SWITCH_TYPE_MAP.BILGE_PUMP]: {
+    [victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.BILGE_PUMP]: {
       text: `
       <div>
         <strong>Most relevant path(s):</strong>
@@ -342,12 +342,12 @@
     }
   };
 
-  function initializeSwitchTooltips () {
+  function initializeSwitchTooltips() {
     $('.switch-tooltip-container').remove();
 
     $('.switch-field-tooltip-icon').off('mouseenter mouseleave');
 
-    $('.switch-field-tooltip-icon').on('mouseenter', function (e) {
+    $('.switch-field-tooltip-icon').on('mouseenter', function(e) {
       const $icon = $(this);
       const tooltipText = $icon.attr('data-tooltip');
       const $tooltip = $('<div class="switch-tooltip-container"></div>').text(tooltipText);
@@ -368,7 +368,7 @@
       $icon.data('tooltip-element', $tooltip);
     });
 
-    $('.switch-field-tooltip-icon').on('mouseleave', function () {
+    $('.switch-field-tooltip-icon').on('mouseleave', function() {
       const $icon = $(this);
       const $tooltip = $icon.data('tooltip-element');
       if ($tooltip) {
@@ -378,7 +378,7 @@
     });
   }
 
-  function renderSwitchConfigRow (context) {
+  function renderSwitchConfigRow(context) {
     const typeOptions = Object.entries(SWITCH_TYPE_CONFIGS)
       .map(([value, cfg]) => `<option value="${value}">${cfg.label}</option>`)
       .join('');
@@ -390,10 +390,10 @@
     `);
     $('#switch-config-container').append(switchRow);
 
-    const savedType = context.switch_1_type !== undefined ? context.switch_1_type : victronVirtualConstantsExports.SWITCH_TYPE_MAP.TOGGLE;
+    const savedType = context.switch_1_type !== undefined ? context.switch_1_type : victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.TOGGLE;
     $('#node-input-switch_1_type').val(String(savedType));
 
-    function renderTypeConfig () {
+    function renderTypeConfig() {
       $('#switch-1-config-row').remove();
       $('#switch-1-pairs-row').remove();
       $('#switch-1-doc-row').remove();
@@ -442,8 +442,8 @@
           const $input = $(`#node-input-switch_1_${field.id}`);
 
           // Add validation for stepped switch max field
-          if (field.id === 'max' && Number(type) === victronVirtualConstantsExports.SWITCH_TYPE_MAP.STEPPED) {
-            $input.on('blur input', function () {
+          if (field.id === 'max' && Number(type) === victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.STEPPED) {
+            $input.on('blur input', function() {
               const val = $(this).val();
               const maxVal = parseInt(val, 10);
 
@@ -463,7 +463,7 @@
         });
 
         // Special handling for dropdown type
-        if (String(type) === String(victronVirtualConstantsExports.SWITCH_TYPE_MAP.DROPDOWN)) {
+        if (String(type) === String(victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.DROPDOWN)) {
           // Restore count for dropdown options
           let restoredCount = 2; // default
           const savedLabel = context.switch_1_label;
@@ -515,7 +515,7 @@
         }
       }
 
-      if (Number(type) === victronVirtualConstantsExports.SWITCH_TYPE_MAP.TEMPERATURE_SETPOINT) {
+      if (Number(type) === victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.TEMPERATURE_SETPOINT) {
         // Add checkbox for Measurement path
         const measurementToggle = $(`
         <div class="form-row" id="switch-1-measurement-toggle-row">
@@ -536,7 +536,7 @@
     renderTypeConfig();
   }
 
-  function renderDropdownLabels (context) {
+  function renderDropdownLabels(context) {
     $('#switch-1-pairs-row').remove();
 
     const count = parseInt($('#node-input-switch_1_count').val()) || 2;
@@ -578,7 +578,7 @@
     }
   }
 
-  function updateSwitchConfig (context) {
+  function updateSwitchConfig(context) {
     const container = $('#switch-config-container');
     container.empty();
     if ($('select#node-input-device').val() !== 'switch') return
@@ -591,7 +591,7 @@
     });
   }
 
-  function updateBatteryVoltageVisibility () {
+  function updateBatteryVoltageVisibility() {
     const defaultValues = $('#node-input-default_values').is(':checked');
     const preset = $('#node-input-battery_voltage_preset').val();
 
@@ -603,7 +603,7 @@
     $('#battery-voltage-custom-label').toggle(preset === 'custom');
   }
 
-  function checkSelectedVirtualDevice (context) {
+  function checkSelectedVirtualDevice(context) {
     [
       'acload', 'battery', 'generator', 'gps', 'grid', 'motordrive',
       'pvinverter', 'switch', 'tank', 'temperature'
@@ -621,7 +621,7 @@
 
     if (selected === 'temperature') {
       // Show/hide battery voltage input based on checkbox
-      $('#node-input-include-battery').off('change').on('change', function () {
+      $('#node-input-include-battery').off('change').on('change', function() {
         if ($(this).is(':checked')) {
           $('#battery-voltage-row').show();
         } else {
@@ -655,7 +655,7 @@
     }
   }
 
-  function validateSwitchConfig () {
+  function validateSwitchConfig() {
     const type = $('#node-input-switch_1_type').val();
     const cfg = SWITCH_TYPE_CONFIGS[type];
 
@@ -667,7 +667,7 @@
           $input[0].reportValidity();
           return false
         } else if ($input.length) {
-          if (field.id === 'max' && Number(type) === victronVirtualConstantsExports.SWITCH_TYPE_MAP.STEPPED) {
+          if (field.id === 'max' && Number(type) === victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.STEPPED) {
             const val = $input.val();
             const maxVal = parseInt(val, 10);
             if (isNaN(maxVal) || maxVal < 1 || maxVal > 7) {
@@ -685,7 +685,7 @@
     }
 
     // Special validation for dropdown type (6)
-    if (String(type) === String(victronVirtualConstantsExports.SWITCH_TYPE_MAP.DROPDOWN)) {
+    if (String(type) === String(victronVirtualConstantsExports$1.SWITCH_TYPE_MAP.DROPDOWN)) {
       const pairCount = parseInt($('#node-input-switch_1_count').val()) || 2;
       for (let j = 0; j < pairCount; j++) {
         const $value = $(`#node-input-switch_1_value_${j}`);
@@ -700,26 +700,39 @@
     return true
   }
 
+  const DEVICE_TYPE_TO_NUM_OUTPUTS = {
+    'switch': (config) => {
+
+      // determine outputs based on type
+      const switchType = config?.switch_1_type;
+
+      // Parse switch type (handle both string and number)
+      const typeKey = switchType !== undefined ? parseInt(switchType, 10) : victronVirtualConstantsExports.SWITCH_TYPE_MAP.TOGGLE;
+
+      // Look up outputs from config, default to 2 (passthrough + state)
+      return victronVirtualConstantsExports.SWITCH_OUTPUT_CONFIG[typeKey] || 2
+
+    },
+    'acload': (config) => {
+      if (config.enable_s2support) {
+        return 2 // passthrough + signals
+      }
+      return 1
+    }
+  };
+
   /**
    * Calculate the number of outputs for a virtual device
    * @param {string} device - Device type (e.g., 'battery', 'switch', 'gps')
    * @param {object} config - Device configuration object
    * @returns {number} Number of outputs (minimum 1)
    */
-  function calculateOutputs (device, config) {
-    // Default to 1 output (passthrough) for all non-switch devices
-    if (!device || device !== 'switch') {
+  function calculateOutputs(device, config) {
+    if (DEVICE_TYPE_TO_NUM_OUTPUTS[device]) {
+      return DEVICE_TYPE_TO_NUM_OUTPUTS[device](config);
+    } else {
       return 1
     }
-
-    // For switches, determine outputs based on type
-    const switchType = config?.switch_1_type;
-
-    // Parse switch type (handle both string and number)
-    const typeKey = switchType !== undefined ? parseInt(switchType, 10) : victronVirtualConstantsExports.SWITCH_TYPE_MAP.TOGGLE;
-
-    // Look up outputs from config, default to 2 (passthrough + state)
-    return victronVirtualConstantsExports.SWITCH_OUTPUT_CONFIG[typeKey] || 2
   }
 
   /**
@@ -727,10 +740,11 @@
    * This is a thin wrapper around calculateOutputs that handles DOM manipulation
    * @param {object} context - Node-RED editor context (this)
    */
-  function updateOutputs (context) {
+  function updateOutputs(context) {
     const device = context.device;
     const config = {
-      switch_1_type: context.switch_1_type
+      switch_1_type: context.switch_1_type,
+      enable_s2support: context.enable_s2support
     };
     const outputs = calculateOutputs(device, config);
 
@@ -743,8 +757,8 @@
 
   window.checkGeneratorType = checkGeneratorType;
   window.SWITCH_TYPE_CONFIGS = SWITCH_TYPE_CONFIGS;
-  window.SWITCH_OUTPUT_CONFIG = victronVirtualConstantsExports.SWITCH_OUTPUT_CONFIG;
-  window.SWITCH_THIRD_OUTPUT_LABEL = victronVirtualConstantsExports.SWITCH_THIRD_OUTPUT_LABEL;
+  window.SWITCH_OUTPUT_CONFIG = victronVirtualConstantsExports$1.SWITCH_OUTPUT_CONFIG;
+  window.SWITCH_THIRD_OUTPUT_LABEL = victronVirtualConstantsExports$1.SWITCH_THIRD_OUTPUT_LABEL;
   window.renderSwitchConfigRow = renderSwitchConfigRow;
   window.updateSwitchConfig = updateSwitchConfig;
   window.checkSelectedVirtualDevice = checkSelectedVirtualDevice;
