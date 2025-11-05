@@ -1201,15 +1201,15 @@ module.exports = function (RED) {
                 'S2/0/RmSettings/OnHysteresis': { type: 'i' },
                 'S2/0/RmSettings/PowerSetting': { type: 'i' },
                 'S2/0/Priority': { type: 'i' },
-                'S2/0/Rm': { type: 's' }
+                'S2/0/Rm': { type: 's', format: (v) => v != null ? v : '' }
               }
 
               const s2Defaults = {
-                'S2/0/Active': null,
+                'S2/0/Active': 0,
                 'S2/0/RmSettings/OffHysteresis': 30,
                 'S2/0/RmSettings/OnHysteresis': 30,
                 'S2/0/RmSettings/PowerSetting': 1000,
-                'S2/0/Priority': 0,
+                'S2/0/Priority': null,
                 'S2/0/Rm': ''
               }
 
