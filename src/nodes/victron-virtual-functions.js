@@ -453,6 +453,37 @@ function renderDropdownLabels (context) {
   }
 }
 
+export function fetchSwitchNodeNameAndGroupFromCache (id) {
+  if (!id) {
+    throw new Error('id is required')
+  }
+
+  return fetch(`/victron/cache?filter_by_serial=${id}`)
+    .then(response => response.json())
+    .then(data => {
+      console.log('Fetched cache data for switch node:', data)
+      for (const key in data) {
+        if (key.match(/^com.victronenergy\./) && data[key]['/Serial'] === id) {
+          const name = data[key]['/SwitchableOutput/output_1/Settings/CustomName']
+          const group = data[key]['/SwitchableOutput/output_1/Settings/Group']
+          console.log('Updating name / group from dbus cache:', name, group)
+          return { name, group }
+          // if (name) {
+          //   $(`#node-input-switch_1_customname`).val(name);
+          // }
+          // if (group) {
+          //   $(`#node-input-switch_1_group`).val(group);
+          // }
+        }
+      }
+      // No matching entry found
+      return {}
+    }).catch(error => {
+      console.error('Error fetching cache data for switch node:', error)
+      throw error
+    })
+}
+
 export function updateSwitchConfig (context) {
   const container = $('#switch-config-container')
   container.empty()
