@@ -67,7 +67,7 @@
 
             return 'Output ' + (index + 1)
         },
-        oneditprepare: function oneditprepare() {
+        oneditprepare: function oneditprepare(arg1, arg2, arg3, arg4) {
             const { renderSwitchConfigRow, updateOutputs, initializeTooltips } = window.__victron;
 
             this.device = 'switch';
@@ -83,6 +83,28 @@
             if (typeof initializeTooltips === 'function') {
                 initializeTooltips();
             }
+
+            // TODO: If not deployed, is there an id? Yes, there is an id always (confirmed by debugging)
+            // TODO: refactor to make testable? Useful for the deprecated switch, at least. Move to victron-virtual-functions.js?
+            fetch(`/victron/cache?filter_by_serial=${this.id}`).then(response => response.json()).then(data => {
+                console.log('Fetched cache data for switch node:', data);
+                for (const key in data) {
+                    if (key.match(/^com.victronenergy\./) && data[key]['/Serial'] === this.id) {
+                        const name = data[key]['/SwitchableOutput/output_1/Settings/CustomName']
+                        const group = data[key]['/SwitchableOutput/output_1/Settings/Group']
+                        console.log('Updating name / group from dbus cache:', name, group);
+                        if (name) {
+                            $(`#node-input-switch_1_customname`).val(name);
+                        }
+                        if (group) {
+                            $(`#node-input-switch_1_group`).val(group);
+                        }
+                    }
+                }
+            }).catch(error => {
+                console.error('Error fetching cache data for switch node:', error);
+            });
+
         },
         oneditsave: function() {
             const { validateSwitchConfig, SWITCH_TYPE_CONFIGS, updateOutputs } = window.__victron;
