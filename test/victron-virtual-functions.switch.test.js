@@ -40,17 +40,57 @@ function createMockElement(customValues = {}) {
 global.$ = jest.fn()
 
 describe('fetchSwitchNodeNameAndGroupFromCache', () => {
+  const originalFetch = global.fetch;
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  test('returns name and group when found in cache', () => {
+  afterAll(() => {
+    global.fetch = originalFetch;
+  })
+
+  test('returns name and group when found in cache', async () => {
+
     const mockCache = {
-      '12345': { name: 'Test Switch', group: 'Test Group' }
+      'com.victronenergy.123': {
+        '/Serial': '12345',
+        '/SwitchableOutput/output_1/Settings/CustomName': 'Test Switch',
+        '/SwitchableOutput/output_1/Settings/Group': 'Test Group',
+      },
     }
 
-    const result = fetchSwitchNodeNameAndGroupFromCache(mockCache, '12345')
+    global.fetch = jest.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockCache)
+    }))
+
+    const result = await fetchSwitchNodeNameAndGroupFromCache('12345')
     expect(result).toEqual({ name: 'Test Switch', group: 'Test Group' })
+
+    const noResult = await fetchSwitchNodeNameAndGroupFromCache('67890')
+    expect(noResult).toEqual({})
+
+    // expect it to fail if no id given
+    try {
+      await fetchSwitchNodeNameAndGroupFromCache()
+      expect(true).toBe(false); // should not reach here
+    } catch (e) {
+      expect(e.message).toMatch('id is required');
+    }
+
+    // expect it to fail if fetch fails
+    global.fetch = jest.fn(() => Promise.resolve({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error'
+    }))
+
+    try {
+      await fetchSwitchNodeNameAndGroupFromCache('12345')
+      expect(true).toBe(false); // should not reach here
+    } catch (e) {
+      expect(e.message).toBeDefined();
+    }
   })
 
 })
