@@ -153,7 +153,7 @@
     { id: 'group', type: 'text', placeholder: 'Group', title: 'Group', tooltip: 'Group name for the switch. If the group gets changed in the gui after initial deploy, that value will be overwritten on restart and re-deploy of Node-RED.' }
   ];
 
-  function checkGeneratorType() {
+  function checkGeneratorType () {
     const generatorType = $('select#node-input-generator_type').val();
     if (generatorType === 'dc') {
       $('.dc-generator-only').show();
@@ -320,7 +320,7 @@
     )
   };
 
-  function renderSwitchConfigRow(context) {
+  function renderSwitchConfigRow (context) {
     const typeOptions = Object.entries(SWITCH_TYPE_CONFIGS)
       .map(([value, cfg]) => `<option value="${value}">${cfg.label}</option>`)
       .join('');
@@ -335,7 +335,7 @@
     const savedType = context.switch_1_type !== undefined ? context.switch_1_type : victronVirtualConstantsExports.SWITCH_TYPE_MAP.TOGGLE;
     $('#node-input-switch_1_type').val(String(savedType));
 
-    function renderTypeConfig() {
+    function renderTypeConfig () {
       $('#switch-1-config-row').remove();
       $('#switch-1-pairs-row').remove();
       $('#switch-docs-container').empty();
@@ -385,7 +385,7 @@
 
           // Add validation for stepped switch max field
           if (field.id === 'max' && Number(type) === victronVirtualConstantsExports.SWITCH_TYPE_MAP.STEPPED) {
-            $input.on('blur input', function() {
+            $input.on('blur input', function () {
               const val = $(this).val();
               const maxVal = parseInt(val, 10);
 
@@ -516,7 +516,7 @@
         ];
 
         rgbCheckboxIds.forEach(id => {
-          $(id).on('change', function() {
+          $(id).on('change', function () {
             // Count how many are checked
             const checkedCount = rgbCheckboxIds.filter(cbId => $(cbId).is(':checked')).length;
 
@@ -540,7 +540,7 @@
     renderTypeConfig();
   }
 
-  function renderDropdownLabels(context) {
+  function renderDropdownLabels (context) {
     $('#switch-1-pairs-row').remove();
 
     const count = parseInt($('#node-input-switch_1_count').val()) || 2;
@@ -581,8 +581,7 @@
     }
   }
 
-  function fetchSwitchNodeNameAndGroupFromCache(id) {
-
+  function fetchSwitchNodeNameAndGroupFromCache (id) {
     if (!id) {
       throw new Error('id is required')
     }
@@ -596,7 +595,7 @@
             const name = data[key]['/SwitchableOutput/output_1/Settings/CustomName'];
             const group = data[key]['/SwitchableOutput/output_1/Settings/Group'];
             console.log('Updating name / group from dbus cache:', name, group);
-            return { name, group };
+            return { name, group }
             // if (name) {
             //   $(`#node-input-switch_1_customname`).val(name);
             // }
@@ -606,15 +605,14 @@
           }
         }
         // No matching entry found
-        return {};
+        return {}
       }).catch(error => {
         console.error('Error fetching cache data for switch node:', error);
-        throw error;
-      });
-
+        throw error
+      })
   }
 
-  function updateSwitchConfig(context) {
+  function updateSwitchConfig (context) {
     const container = $('#switch-config-container');
     container.empty();
     // Also clear the docs container
@@ -629,7 +627,7 @@
     });
   }
 
-  function updateBatteryVoltageVisibility() {
+  function updateBatteryVoltageVisibility () {
     const defaultValues = $('#node-input-default_values-yes').is(':checked');
     const preset = $('#node-input-battery_voltage_preset').val();
 
@@ -641,7 +639,7 @@
     $('#battery-voltage-custom-label').toggle(preset === 'custom');
   }
 
-  function checkSelectedVirtualDevice(context) {
+  function checkSelectedVirtualDevice (context) {
     [
       'acload', 'battery', 'generator', 'gps', 'grid', 'e-drive',
       'pvinverter', 'switch', 'tank', 'temperature'
@@ -651,7 +649,7 @@
     $('.input-' + selected).show();
 
     if (selected === 'acload') {
-      $('#node-input-enable_s2support').off('change.s2support').on('change.s2support', function() {
+      $('#node-input-enable_s2support').off('change.s2support').on('change.s2support', function () {
         context.enable_s2support = $(this).is(':checked');
         updateOutputs(context);
       });
@@ -664,14 +662,14 @@
     }
 
     if (selected === 'temperature') {
-      $('#node-input-include_temp_battery').off('change').on('change', function() {
+      $('#node-input-include_temp_battery').off('change').on('change', function () {
         $('#battery-temp_voltage-row').toggle($(this).is(':checked'));
       });
       $('#battery-temp_voltage-row').toggle($('#node-input-include_temp_battery').is(':checked'));
     }
 
     if (selected === 'tank') {
-      $('#node-input-include_tank_battery').off('change').on('change', function() {
+      $('#node-input-include_tank_battery').off('change').on('change', function () {
         $('#tank_battery-voltage-row').toggle($(this).is(':checked'));
       });
       $('#tank_battery-voltage-row').toggle($('#node-input-include_tank_battery').is(':checked'));
@@ -698,7 +696,7 @@
     }
   }
 
-  function validateSwitchConfig() {
+  function validateSwitchConfig () {
     const type = $('#node-input-switch_1_type').val();
     const cfg = SWITCH_TYPE_CONFIGS[type];
 
@@ -790,7 +788,7 @@
    * @param {object} config - Device configuration object
    * @returns {number} Number of outputs (minimum 1)
    */
-  function calculateOutputs(device, config) {
+  function calculateOutputs (device, config) {
     if (DEVICE_TYPE_TO_NUM_OUTPUTS[device]) {
       return DEVICE_TYPE_TO_NUM_OUTPUTS[device](config)
     } else {
@@ -803,7 +801,7 @@
    * This is a thin wrapper around calculateOutputs that handles DOM manipulation
    * @param {object} context - Node-RED editor context (this)
    */
-  function updateOutputs(context) {
+  function updateOutputs (context) {
     const device = context.device;
     const config = {
       switch_1_type: context.switch_1_type,
