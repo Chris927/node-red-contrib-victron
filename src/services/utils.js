@@ -295,7 +295,6 @@ function filterCache (cache, options = {}) {
 
   const filteredCache = {}
   for (const [device, paths] of Object.entries(cache)) {
-    console.log('Filtering device:', device, 'by serial:', filterBySerial, 'paths:', paths)
     if (filterBySerial && device.match(/^com\.victronenergy\./) && paths['/Serial'] === filterBySerial) {
       filteredCache[device] = paths
     }

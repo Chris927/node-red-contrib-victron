@@ -455,7 +455,7 @@ function renderDropdownLabels (context) {
 
 export function fetchSwitchNodeNameAndGroupFromCache (id) {
   if (!id) {
-    throw new Error('id is required')
+    return Promise.reject(new Error('id is required'))
   }
 
   return fetch(`/victron/cache?filter_by_serial=${id}`)
@@ -470,9 +470,6 @@ export function fetchSwitchNodeNameAndGroupFromCache (id) {
       }
       // No matching entry found
       return {}
-    }).catch(error => {
-      console.error('Error fetching cache data for switch node:', error)
-      throw error
     })
 }
 
