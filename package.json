@@ -38,6 +38,7 @@
     "jest": "^29.7.0",
     "rollup": "^4.50.0",
     "standard": "^17.1.2",
+    "testcafe": "^3.7.4",
     "yargs": "^17.7.2"
   },
   "keywords": [
@@ -49,6 +50,7 @@
     "test": "npm run lint && npm run build && npm run build:test && npm run test:unit",
     "test:unit": "jest",
     "test:coverage": "jest --coverage",
+    "test:e2e": "testcafe chrome testcafe/*test.js",
     "lint": "standard --fix src/ scripts/",
     "verify": "npm test",
     "prerelease": "npm run verify",
