@@ -68,6 +68,13 @@ test('My second test', async t => {
 	// confirm dialog
 	await t.click('#node-dialog-ok');
 
+	// connect switch1 third output to debug node
+	const source = Selector('#switch1').find('g.red-ui-flow-port-output').nth(2).find('.red-ui-flow-port');
+	// console.log('Source selector:', await (Selector('#switch1').find('g.red-ui-flow-port-output').nth(2)()));
+	const target = Selector('#debug_001').find('g.red-ui-flow-port-input .red-ui-flow-port');
+
+	await t.setTestSpeed(0.5).dragToElement(source, target);
+
 	// deploy
 	await t.click('#red-ui-header-button-deploy');
 

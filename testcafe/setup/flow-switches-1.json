@@ -78,6 +78,22 @@
         [],
         []
       ]
+    },
+    {
+      "id":"debug_001",
+      "type":"debug",
+      "z":"63f41f6c0a971ccc",
+      "name":"debug 001",
+      "active":true,
+      "tosidebar":true,
+      "console":false,
+      "tostatus":false,
+      "complete":"false",
+      "statusVal":"",
+      "statusType":"auto",
+      "x":360,
+      "y":80,
+      "wires":[]
     }
   ]
 }
