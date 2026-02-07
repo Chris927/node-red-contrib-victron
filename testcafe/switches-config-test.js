@@ -1,8 +1,11 @@
 const { readFileSync } = require('fs');
+const { exec } = require('child_process');
 
 const { Selector } = require("testcafe");
 
 const NODE_RED_ENDPOINT = process.env.NODE_RED_ENDPOINT || 'http://localhost:1880';
+
+const SSH_COMMAND = process.env.SSH_COMMAND || 'ssh -p 2232 root@localhost';
 
 fixture('Getting Started 2')
 	.page(NODE_RED_ENDPOINT);
@@ -46,6 +49,42 @@ async function setupFlow(t, flowName) {
 	return result.body.id;
 }
 
+async function dbus_SetValue(name, path, value) {
+	const command = `${SSH_COMMAND} "dbus-send --system --type=method_call --print-reply --dest='${name}' '${path}' com.victronenergy.BusItem.SetValue '${value}'"`;
+	console.log(`Executing command: ${command}`);
+	return new Promise((resolve, reject) => {
+		exec(command, (error, stdout, stderr) => {
+			if (error) {
+				console.error(`Error executing command: ${error.message}`);
+				return reject(error);
+			}
+			if (stderr) {
+				console.error(`Command stderr: ${stderr}`);
+			}
+			console.log(`Command stdout: ${stdout}`);
+			resolve(stdout);
+		});
+	});
+}
+
+async function dbus_GetValue(name, path) {
+	const command = `${SSH_COMMAND} "dbus-send --system --type=method_call --print-reply --dest='${name}' '${path}' com.victronenergy.BusItem.GetValue"`;
+	console.log(`Executing command: ${command}`);
+	return new Promise((resolve, reject) => {
+		exec(command, (error, stdout, stderr) => {
+			if (error) {
+				console.error(`Error executing command: ${error.message}`);
+				return reject(error);
+			}
+			if (stderr) {
+				console.error(`Command stderr: ${stderr}`);
+			}
+			console.log(`Command stdout: ${stdout}`);
+			resolve(stdout);
+		});
+	});
+}
+
 test('My second test', async t => {
 	const flowId = await setupFlow(t, 'flow-switches-1');
 	console.log(`Using flow ID: ${flowId}`);
@@ -80,6 +119,22 @@ test('My second test', async t => {
 
 	const notification = Selector('#red-ui-notifications div p').innerText;
 	await t.expect(notification).eql('Successfully deployed');
+
+	// click debug to open debug sidebar
+	await t.click('#red-ui-tab-debug-link-button');
+	await t.expect(Selector('.red-ui-debug-content').visible).ok();
+
+	// click the switch to trigger the flow
+	await dbus_SetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State', 'variant:int32:1');
+
+	const state = await dbus_GetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State')
+	console.log(`state after switching on: ${state}`);
+
+	// switch off
+	await dbus_SetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State', 'variant:int32:0');
+
+	const state2 = await dbus_GetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State')
+	console.log(`state after switching off: ${state2}`);
 
 });
 
