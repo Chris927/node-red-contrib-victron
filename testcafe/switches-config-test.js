@@ -85,6 +85,14 @@ async function dbus_GetValue(name, path) {
 	});
 }
 
+async function getExistingNodeIds() {
+	const existingNodes = Selector('#red-ui-workspace-chart .red-ui-flow-node.red-ui-flow-node-group');
+	// iterate all that match
+	const count = await existingNodes.count;
+	console.log(`Found ${count} existing nodes on workspace`);
+	return Promise.all(Array.from({ length: count }, (_, i) => existingNodes.nth(i).getAttribute('id')));
+}
+
 test('My second test', async t => {
 	const flowId = await setupFlow(t, 'flow-switches-1');
 	console.log(`Using flow ID: ${flowId}`);
@@ -136,6 +144,30 @@ test('My second test', async t => {
 	const state2 = await dbus_GetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State')
 	console.log(`state after switching off: ${state2}`);
 
+	// TODO: add assertions
+
+	// determine the ids of existing nodes on #red-ui-workspace-chart
+	const existingNodeIds = await getExistingNodeIds();
+	console.log(`Existing node ids on workspace: ${existingNodeIds.join(', ')}`);
+
+	// add another virtual switch, by drag n drop
+	const paletteItem = Selector('.red-ui-palette-node[data-palette-type="victron-virtual-switch"]').find('.red-ui-palette-label');
+	await t.dragToElement(paletteItem, Selector('#red-ui-workspace-chart'));
+
+	const existingNodeIdsAfter = await getExistingNodeIds();
+	console.log(`Existing node ids on workspace after adding virtual switch: ${existingNodeIdsAfter.join(', ')}`);
+
+	// add yet another virtual switch, by drag n drop
+	await t.dragToElement(paletteItem, Selector('#red-ui-workspace-chart'), {
+		destinationOffsetX: 200,
+		destinationOffsetY: 300
+	});
+
+	// add yet another virtual switch, by drag n drop
+	await t.dragToElement(paletteItem, Selector('#red-ui-workspace-chart'), {
+		destinationOffsetX: 200,
+		destinationOffsetY: 340
+	});
 });
 
 
