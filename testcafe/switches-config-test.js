@@ -93,6 +93,30 @@ async function getExistingNodeIds() {
 	return Promise.all(Array.from({ length: count }, (_, i) => existingNodes.nth(i).getAttribute('id')));
 }
 
+let nextNodeOffsetY = 200;
+
+async function addVirtualSwitchNode(t) {
+
+	const existingNodeIds = await getExistingNodeIds();
+	console.log(`Existing node ids on workspace before adding virtual switch: ${existingNodeIds.join(', ')}`);
+
+	const paletteItem = Selector('.red-ui-palette-node[data-palette-type="victron-virtual-switch"]').find('.red-ui-palette-label');
+	await t.dragToElement(paletteItem, Selector('#red-ui-workspace-chart'), {
+		destinationOffsetX: 400,
+		destinationOffsetY: nextNodeOffsetY
+	});
+
+	nextNodeOffsetY += 40;
+
+	const nodeIdsAfter = await getExistingNodeIds();
+	console.log(`Existing node ids on workspace after adding virtual switch: ${nodeIdsAfter.join(', ')}`);
+	const newNodeIds = nodeIdsAfter.filter(id => !existingNodeIds.includes(id));
+	if (newNodeIds.length !== 1) {
+		throw new Error(`Expected exactly one new node to be added, but found ${newNodeIds.length}. Existing nodes: ${existingNodeIds.join(', ')}, nodes after: ${nodeIdsAfter.join(', ')}`);
+	}
+	return newNodeIds[0];
+}
+
 test('My second test', async t => {
 	const flowId = await setupFlow(t, 'flow-switches-1');
 	console.log(`Using flow ID: ${flowId}`);
@@ -157,17 +181,13 @@ test('My second test', async t => {
 	const existingNodeIdsAfter = await getExistingNodeIds();
 	console.log(`Existing node ids on workspace after adding virtual switch: ${existingNodeIdsAfter.join(', ')}`);
 
-	// add yet another virtual switch, by drag n drop
-	await t.dragToElement(paletteItem, Selector('#red-ui-workspace-chart'), {
-		destinationOffsetX: 200,
-		destinationOffsetY: 300
-	});
+	const newSwitch1Id = await addVirtualSwitchNode(t);
+	console.log(`New virtual switch node id: ${newSwitch1Id}`);
 
-	// add yet another virtual switch, by drag n drop
-	await t.dragToElement(paletteItem, Selector('#red-ui-workspace-chart'), {
-		destinationOffsetX: 200,
-		destinationOffsetY: 340
-	});
+	const newSwitch2Id = await addVirtualSwitchNode(t);
+	console.log(`New virtual switch node id: ${newSwitch2Id}`);
+
+
 });
 
 
