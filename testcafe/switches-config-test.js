@@ -95,6 +95,10 @@ async function getExistingNodeIds() {
 
 let nextNodeOffsetY = 200;
 
+function resetFlowNodeOffset() {
+	nextNodeOffsetY = 200;
+}
+
 async function addVirtualSwitchNode(t) {
 
 	const existingNodeIds = await getExistingNodeIds();
@@ -117,6 +121,32 @@ async function addVirtualSwitchNode(t) {
 	return newNodeIds[0];
 }
 
+/**
+		* Configure a virtual switch node by opening its configuration dialog and setting the provided options.
+		* @param {TestController} t - The TestCafe test controller.
+		* @param {string} nodeId - The ID of the virtual switch node to configure.
+		* @param {Object} options - An array of options to set, with each option having name, value, and type. The name maps to a selector `#node-input-${name}`. The value is the value to set, and the type can be 'text' (default), or 'select' (for dropdowns).
+		*/
+async function configureVirtualSwitchNode(t, nodeId, options) {
+	console.log(`configureVirtualSwitchNode, nodeId: ${nodeId}, options: ${JSON.stringify(options)}`);
+	const nodeSelector = Selector('g').withAttribute('id', nodeId);
+	await t.doubleClick(nodeSelector);
+
+	for (const option of options) {
+		const { name, value, type = 'text' } = option;
+		const inputSelector = Selector(`#node-input-${name}`);
+		console.log('inputSelector:', inputSelector)
+		if (type === 'text') {
+			await t.typeText(inputSelector, value);
+		} else if (type === 'select') {
+			await t.click(inputSelector);
+			await t.click(Selector(`#node-input-${name} option`).withText(value));
+		} else {
+			throw new Error(`Unsupported option type: ${type}`);
+		}
+	}
+}
+
 test('My second test', async t => {
 	const flowId = await setupFlow(t, 'flow-switches-1');
 	console.log(`Using flow ID: ${flowId}`);
@@ -124,6 +154,11 @@ test('My second test', async t => {
 
 	// reload the page, to ensure there is no 'review the changed' dialog
 	await t.eval(() => location.reload(true));
+
+	// wait for the tab to be active
+	await t.expect(Selector('.red-ui-tab.active').withAttribute('id', `red-ui-tab-${flowId}`)).ok('Flow tab did not become active');
+
+	console.log(`Tab for flow ${flowId} is active`);
 
 	await t.doubleClick(Selector('#switch1'));
 	await t.typeText('#node-input-name', 'switch-1-testcafe');
@@ -190,5 +225,30 @@ test('My second test', async t => {
 
 });
 
+test('Test Switches, starting with empty flow', async t => {
+	const flowId = await setupFlow(t, 'empty-flow');
+	resetFlowNodeOffset();
+	console.log(`Using flow ID: ${flowId}`);
+	await t.navigateTo(`${NODE_RED_ENDPOINT}/#flow/${flowId}`);
+
+	// reload the page, to ensure there is no 'review the changed' dialog
+	await t.eval(() => location.reload(true));
+
+	// wait for the tab to be active
+	await t.expect(Selector('.red-ui-tab.active').withAttribute('id', `red-ui-tab-${flowId}`).exists).ok('Flow tab did not become active');
+
+	console.log(`Tab for flow ${flowId} is active`);
+
+	// add a virtual switch node
+	const newSwitch1Id = await addVirtualSwitchNode(t);
+	console.log(`New virtual switch node id: ${newSwitch1Id}`);
+
+	await configureVirtualSwitchNode(t, newSwitch1Id, [
+		{ name: 'name', value: 'switch-1-testcafe' },
+		{ name: 'switch_1_type', value: 'Dimmable', type: 'select' },
+		{ name: 'switch_1_customname', value: 'switch-1-testcafe' },
+		{ name: 'switch_1_group', value: 'testcafe' },
+	]);
+});
 
 
