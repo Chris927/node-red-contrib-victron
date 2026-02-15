@@ -243,12 +243,79 @@ test('Test Switches, starting with empty flow', async t => {
 	const newSwitch1Id = await addVirtualSwitchNode(t);
 	console.log(`New virtual switch node id: ${newSwitch1Id}`);
 
-	await configureVirtualSwitchNode(t, newSwitch1Id, [
-		{ name: 'name', value: 'switch-1-testcafe' },
-		{ name: 'switch_1_type', value: 'Dimmable', type: 'select' },
-		{ name: 'switch_1_customname', value: 'switch-1-testcafe' },
-		{ name: 'switch_1_group', value: 'testcafe' },
-	]);
+	const switchesToTest = [
+		{
+			name: 'momentary1',
+			type: 'Momentary'
+		},
+		{
+			name: 'toggle1',
+			type: 'Toggle'
+		},
+		{
+			name: 'dimmable1',
+			type: 'Dimmable'
+		},
+		{
+			name: 'temp1',
+			type: 'Temperature setpoint',
+			props: [
+				{
+					switch_1_min: '0',
+					switch_1_max: '30',
+					switch_1_step: '0.5'
+				}
+			]
+		}
+	]
+
+	for (const switchConfig of switchesToTest) {
+		const newSwitchId = await addVirtualSwitchNode(t);
+		console.log(`New virtual switch node id: ${newSwitchId}`);
+
+		const options = [
+			{ name: 'name', value: switchConfig.name },
+			{ name: 'switch_1_type', value: switchConfig.type, type: 'select' },
+			{ name: 'switch_1_customname', value: switchConfig.name },
+			{ name: 'switch_1_group', value: 'testcafe' },
+		];
+
+		if (switchConfig.props) {
+			for (const prop of switchConfig.props) {
+				for (const [key, value] of Object.entries(prop)) {
+					options.push({ name: key, value });
+				}
+			}
+		}
+
+		await configureVirtualSwitchNode(t, newSwitchId, options);
+
+		// confirm dialog
+		await t.click('#node-dialog-ok');
+	}
+
+	// await configureVirtualSwitchNode(t, newSwitch1Id, [
+	// 	{ name: 'name', value: 'switch-1-testcafe' },
+	// 	{ name: 'switch_1_type', value: 'Momentary', type: 'select' },
+	// 	{ name: 'switch_1_customname', value: 'switch-1-testcafe' },
+	// 	{ name: 'switch_1_group', value: 'testcafe' },
+	// ]);
+
+	// // confirm dialog
+	// await t.click('#node-dialog-ok');
+
+	// // add a virtual switch node
+	// const newSwitch2Id = await addVirtualSwitchNode(t);
+	// console.log(`New virtual switch node id: ${newSwitch1Id}`);
+
+	// await configureVirtualSwitchNode(t, newSwitch2Id, [
+	// 	{ name: 'name', value: 'switch-1-testcafe' },
+	// 	{ name: 'switch_1_type', value: 'Dimmable', type: 'select' },
+	// 	{ name: 'switch_1_customname', value: 'switch-1-testcafe' },
+	// 	{ name: 'switch_1_group', value: 'testcafe' },
+	// ]);
+
+
 });
 
 
