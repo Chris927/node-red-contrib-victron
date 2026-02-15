@@ -137,6 +137,8 @@ async function configureVirtualSwitchNode(t, nodeId, options) {
 		const inputSelector = Selector(`#node-input-${name}`);
 		console.log('inputSelector:', inputSelector)
 		if (type === 'text') {
+			// clear existing text
+			await t.selectText(inputSelector).pressKey('delete');
 			await t.typeText(inputSelector, value);
 		} else if (type === 'select') {
 			await t.click(inputSelector);
