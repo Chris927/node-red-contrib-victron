@@ -7,6 +7,17 @@ const NODE_RED_ENDPOINT = process.env.NODE_RED_ENDPOINT || 'http://localhost:188
 
 const SSH_COMMAND = process.env.SSH_COMMAND || 'ssh -p 2232 root@localhost';
 
+const { SWITCH_TYPE_MAP, SWITCH_TYPE_NAMES } = require('../src/nodes/victron-virtual-constants.js');
+
+function getSwitchTypeCodeForName(name) {
+	for (const [code, typeName] of Object.entries(SWITCH_TYPE_NAMES)) {
+		if (typeName === name) {
+			return code;
+		}
+	}
+	throw new Error(`Unknown switch type name: ${name}`);
+}
+
 fixture('Getting Started 2')
 	.page(NODE_RED_ENDPOINT);
 
@@ -110,7 +121,7 @@ async function addVirtualSwitchNode(t) {
 		destinationOffsetY: nextNodeOffsetY
 	});
 
-	nextNodeOffsetY += 40;
+	nextNodeOffsetY += 60;
 
 	const nodeIdsAfter = await getExistingNodeIds();
 	console.log(`Existing node ids on workspace after adding virtual switch: ${nodeIdsAfter.join(', ')}`);
@@ -135,7 +146,6 @@ async function configureVirtualSwitchNode(t, nodeId, options) {
 	for (const option of options) {
 		const { name, value, type = 'text' } = option;
 		const inputSelector = Selector(`#node-input-${name}`);
-		console.log('inputSelector:', inputSelector)
 		if (type === 'text') {
 			// clear existing text
 			await t.selectText(inputSelector).pressKey('delete');
@@ -147,6 +157,19 @@ async function configureVirtualSwitchNode(t, nodeId, options) {
 			throw new Error(`Unsupported option type: ${type}`);
 		}
 	}
+}
+
+async function confirmNodeDialog(t) {
+	await t.click('#node-dialog-ok');
+}
+
+async function deploy(t) {
+
+	await t.click('#red-ui-header-button-deploy');
+
+	const notification = Selector('#red-ui-notifications div p').innerText;
+	await t.expect(notification).eql('Successfully deployed');
+
 }
 
 test('My second test', async t => {
@@ -183,11 +206,7 @@ test('My second test', async t => {
 
 	await t.setTestSpeed(0.5).dragToElement(source, target);
 
-	// deploy
-	await t.click('#red-ui-header-button-deploy');
-
-	const notification = Selector('#red-ui-notifications div p').innerText;
-	await t.expect(notification).eql('Successfully deployed');
+	await deploy(t);
 
 	// click debug to open debug sidebar
 	await t.click('#red-ui-tab-debug-link-button');
@@ -198,14 +217,16 @@ test('My second test', async t => {
 
 	const state = await dbus_GetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State')
 	console.log(`state after switching on: ${state}`);
+	// assert state contains 'int32 1'
+	await t.expect(state).contains('int32 1');
 
 	// switch off
 	await dbus_SetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State', 'variant:int32:0');
 
 	const state2 = await dbus_GetValue(`com.victronenergy.switch.virtual_switch1`, '/SwitchableOutput/output_1/State')
 	console.log(`state after switching off: ${state2}`);
-
-	// TODO: add assertions
+	// assert state contains 'int32 0'
+	await t.expect(state2).contains('int32 0');
 
 	// determine the ids of existing nodes on #red-ui-workspace-chart
 	const existingNodeIds = await getExistingNodeIds();
@@ -218,14 +239,15 @@ test('My second test', async t => {
 	const existingNodeIdsAfter = await getExistingNodeIds();
 	console.log(`Existing node ids on workspace after adding virtual switch: ${existingNodeIdsAfter.join(', ')}`);
 
-	const newSwitch1Id = await addVirtualSwitchNode(t);
-	console.log(`New virtual switch node id: ${newSwitch1Id}`);
-
-	const newSwitch2Id = await addVirtualSwitchNode(t);
-	console.log(`New virtual switch node id: ${newSwitch2Id}`);
-
 
 });
+
+async function assertVirtualSwitchHasDbusValue(t, nodeId, path, expectedValue) {
+	const state = await dbus_GetValue(`com.victronenergy.switch.virtual_${nodeId}`, path)
+	console.log(`state after switching on: ${state}`);
+	await t.expect(state).contains(expectedValue);
+}
+
 
 test('Test Switches, starting with empty flow', async t => {
 	const flowId = await setupFlow(t, 'empty-flow');
@@ -290,32 +312,31 @@ test('Test Switches, starting with empty flow', async t => {
 			}
 		}
 
+		function getOptionsValue(name) {
+			const option = options.find(o => o.name === name);
+			if (!option) {
+				throw new Error(`Option with name ${name} not found`);
+			}
+			return option.value;
+		}
+
 		await configureVirtualSwitchNode(t, newSwitchId, options);
 
-		// confirm dialog
-		await t.click('#node-dialog-ok');
+		await confirmNodeDialog(t);
+
+		await deploy(t);
+
+		// assert the node is visible via dbus with the correct values
+		await assertVirtualSwitchHasDbusValue(
+			t, newSwitchId, '/SwitchableOutput/output_1/State', 'int32 0');
+		await assertVirtualSwitchHasDbusValue(
+			t, newSwitchId, '/SwitchableOutput/output_1/Settings/CustomName', `string "${getOptionsValue('name')}"`);
+		await assertVirtualSwitchHasDbusValue(
+			t, newSwitchId, '/SwitchableOutput/output_1/Settings/Group', `string "${getOptionsValue('switch_1_group')}"`);
+		await assertVirtualSwitchHasDbusValue(
+			t, newSwitchId, '/SwitchableOutput/output_1/Settings/Type', `int32 ${getSwitchTypeCodeForName(getOptionsValue('switch_1_type'))}`);
 	}
 
-	// await configureVirtualSwitchNode(t, newSwitch1Id, [
-	// 	{ name: 'name', value: 'switch-1-testcafe' },
-	// 	{ name: 'switch_1_type', value: 'Momentary', type: 'select' },
-	// 	{ name: 'switch_1_customname', value: 'switch-1-testcafe' },
-	// 	{ name: 'switch_1_group', value: 'testcafe' },
-	// ]);
-
-	// // confirm dialog
-	// await t.click('#node-dialog-ok');
-
-	// // add a virtual switch node
-	// const newSwitch2Id = await addVirtualSwitchNode(t);
-	// console.log(`New virtual switch node id: ${newSwitch1Id}`);
-
-	// await configureVirtualSwitchNode(t, newSwitch2Id, [
-	// 	{ name: 'name', value: 'switch-1-testcafe' },
-	// 	{ name: 'switch_1_type', value: 'Dimmable', type: 'select' },
-	// 	{ name: 'switch_1_customname', value: 'switch-1-testcafe' },
-	// 	{ name: 'switch_1_group', value: 'testcafe' },
-	// ]);
 
 
 });
