@@ -181,7 +181,7 @@ test('My second test', async t => {
 	await t.eval(() => location.reload(true));
 
 	// wait for the tab to be active
-	await t.expect(Selector('.red-ui-tab.active').withAttribute('id', `red-ui-tab-${flowId}`)).ok('Flow tab did not become active');
+	await t.expect(Selector('.red-ui-tab.active').withAttribute('id', `red-ui-tab-${flowId}`).exists).ok('Flow tab did not become active');
 
 	console.log(`Tab for flow ${flowId} is active`);
 
