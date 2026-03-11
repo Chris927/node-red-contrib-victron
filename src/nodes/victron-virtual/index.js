@@ -1,22 +1,30 @@
-/**
- * Virtual Switch Node - Dedicated node for creating virtual switches
- *
- * This node is a specialized version of the Virtual Device node,
- * focused solely on switch functionality. It uses shared logic from
- * /src/services/virtual-switch.js to ensure identical behavior with
- * the legacy Virtual Device (switch) configuration.
- */
-
+const fs = require('fs')
+const path = require('path')
 const { addVictronInterfaces, addSettings } = require('dbus-victron-virtual')
-const { needsPersistedState, hasPersistedState, loadPersistedState, savePersistedState } = require('./persist')
+const { needsPersistedState, hasPersistedState, loadPersistedState, savePersistedState } = require('../persist')
 const dbus = require('dbus-native-victron')
-const debug = require('debug')('victron-virtual-switch')
-const debugInput = require('debug')('victron-virtual-switch:input')
-const debugConnection = require('debug')('victron-virtual-switch:connection')
-const { DEBOUNCE_DELAY_MS } = require('./victron-virtual-constants')
-const { validateVirtualDevicePayload, validateLightControls, debounce } = require('../services/utils')
-const { createSwitchProperties, getSwitchStatusText, handleSwitchOutputs } = require('../services/virtual-switch')
-const { filterInactiveVirtualDevices } = require('../services/virtual-device-cleanup')
+const debug = require('debug')('victron-virtual')
+const debugInput = require('debug')('victron-virtual:input')
+const debugConnection = require('debug')('victron-virtual:connection')
+const {
+  DEBOUNCE_DELAY_MS
+} = require('../victron-virtual-constants')
+const { validateVirtualDevicePayload, validateLightControls, debounce } = require('../../services/utils')
+const { handleSwitchOutputs } = require('../../services/virtual-switch')
+const { filterInactiveVirtualDevices } = require('../../services/virtual-device-cleanup')
+const { makeSetPresence } = require('./helpers')
+
+const acloadModule = require('./device-type/acload')
+const batteryModule = require('./device-type/battery')
+const generatorModule = require('./device-type/generator')
+const gpsModule = require('./device-type/gps')
+const gridModule = require('./device-type/grid')
+const meteoModule = require('./device-type/meteo')
+const motordriveModule = require('./device-type/motordrive')
+const pvinverterModule = require('./device-type/pvinverter')
+const switchModule = require('./device-type/switch')
+const tankModule = require('./device-type/tank')
+const temperatureModule = require('./device-type/temperature')
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('=== UNHANDLED REJECTION (PREVENTING CRASH) ===')
@@ -30,13 +38,144 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('=== END DEBUG ===')
 })
 
+const properties = {
+  acload: acloadModule.properties,
+  battery: batteryModule.properties,
+  temperature: temperatureModule.properties,
+  genset: generatorModule.properties.genset,
+  dcgenset: generatorModule.properties.dcgenset,
+  grid: gridModule.properties,
+  pvinverter: pvinverterModule.properties,
+  meteo: meteoModule.properties,
+  motordrive: motordriveModule.properties,
+  switch: switchModule.properties,
+  tank: tankModule.properties,
+  gps: gpsModule.properties
+}
+
+// Keyed by config.device value
+const deviceModules = {
+  acload: acloadModule,
+  battery: batteryModule,
+  generator: generatorModule,
+  gps: gpsModule,
+  grid: gridModule,
+  meteo: meteoModule,
+  motordrive: motordriveModule,
+  'e-drive': motordriveModule,
+  pvinverter: pvinverterModule,
+  switch: switchModule,
+  tank: tankModule,
+  temperature: temperatureModule
+}
+
+const DEVICE_TYPES = [
+  { value: 'acload', label: 'AC Load' },
+  { value: 'battery', label: 'Battery' },
+  { value: 'e-drive', label: 'E-drive' },
+  { value: 'generator', label: 'Generator' },
+  { value: 'gps', label: 'GPS' },
+  { value: 'grid', label: 'Grid meter' },
+  { value: 'meteo', label: 'Meteo' },
+  { value: 'pvinverter', label: 'PV inverter' },
+  { value: 'switch', label: 'Switch (deprecated)' },
+  { value: 'tank', label: 'Tank sensor' },
+  { value: 'temperature', label: 'Temperature sensor' }
+]
+
+const registeredModules = new Set(Object.keys(deviceModules))
+try {
+  fs.readdirSync(path.join(__dirname, 'device-type'))
+    .filter(f => f.endsWith('.js'))
+    .map(f => path.basename(f, '.js'))
+    .filter(name => !registeredModules.has(name))
+    .forEach(name => {
+      try {
+        const mod = require(path.join(__dirname, 'device-type', name))
+        deviceModules[name] = mod
+        properties[name] = mod.properties
+        const label = mod.label || (name.charAt(0).toUpperCase() + name.slice(1))
+        DEVICE_TYPES.push({ value: name, label })
+        debug(`Loaded virtual device type: ${name} (${label})`)
+      } catch (err) {
+        console.error(`Failed to load virtual device type "${name}":`, err)
+      }
+    })
+} catch (err) {
+  console.error('Failed to load virtual device types:', err)
+}
+
+function getActualDeviceType (type, subtype) {
+  if (type === 'generator') return subtype === 'dc' ? 'dcgenset' : 'genset'
+  if (type === 'e-drive') return 'motordrive'
+  return type
+}
+
+function getIfaceDesc (actualDev) {
+  if (!properties[actualDev]) {
+    return {}
+  }
+
+  const result = {}
+
+  // Deep copy the properties, including format functions
+  for (const [key, value] of Object.entries(properties[actualDev])) {
+    result[key] = { ...value }
+    if (typeof value.format === 'function') {
+      result[key].format = value.format
+    }
+  }
+
+  result.DeviceInstance = { type: 'i' }
+  result.CustomName = { type: 's', persist: true }
+  result.Serial = { type: 's', persist: true }
+
+  return result
+}
+
+function getIface (actualDev) {
+  if (!properties[actualDev]) {
+    return {
+      emit: function () {
+      }
+    }
+  }
+
+  const result = {
+    emit: function () {
+    }
+  }
+
+  for (const key in properties[actualDev]) {
+    const propertyValue = JSON.parse(JSON.stringify(properties[actualDev][key]))
+
+    if (propertyValue.value !== undefined) {
+      result[key] = propertyValue.value
+    } else {
+      switch (propertyValue.type) {
+        case 's':
+          result[key] = '-'
+          break
+        default:
+          result[key] = null
+      }
+    }
+  }
+
+  return result
+}
+
 module.exports = function (RED) {
+  RED.httpNode.get('/victron/virtual-device-types', (_req, res) => {
+    res.json(DEVICE_TYPES)
+  })
+
   // Shared state across all instances
   let hasRunOnce = false
   let globalTimeoutHandle = null
   const nodeInstances = new Set()
 
-  function VictronVirtualSwitchNode (config) {
+  function VictronVirtualNode (config) {
     RED.nodes.createNode(this, config)
     const node = this
 
@@ -50,6 +189,7 @@ module.exports = function (RED) {
     }
 
     node.retryOnConnectionEnd = true
+    node.presenceConnected = false
     node.pendingCallsToSetValuesLocally = []
 
     const debouncedSetters = new Map()
@@ -78,12 +218,23 @@ module.exports = function (RED) {
 
     function handleInput (msg, done) {
       // Send passthrough message FIRST, before any validation
+      const userSetConnected = msg.connected !== undefined
+      if (!userSetConnected) {
+        msg.connected = node.presenceConnected
+      }
       const outputs = [msg]
+      // Fill remaining outputs with null
       for (let i = 1; i < config.outputs; i++) {
         outputs.push(null)
       }
       node.send(outputs)
 
+      if (userSetConnected) {
+        node.setPresence(!!msg.connected, done)
+        return
+      }
+
+      // Now do validation with more helpful messages
       if (!msg || !msg.payload) {
         node.warn('Received message without payload. Expected: JavaScript object with at least one property/value.')
         node.status({
@@ -123,6 +274,44 @@ module.exports = function (RED) {
         }
       }
 
+      function failAndDone (text, done) {
+        node.status({
+          fill: 'red',
+          shape: 'dot',
+          text
+        })
+        return done()
+      }
+
+      function successAndDone (text, done) {
+        node.status({
+          fill: 'green',
+          shape: 'dot',
+          text
+        })
+        return done()
+      }
+
+      if (msg.payload.s2Signal !== undefined) {
+        console.warn('About to send s2Signal', msg.payload)
+        switch (msg.payload.s2Signal) {
+          case 'Message':
+            if (!msg.payload.message) {
+              return failAndDone('s2Signal "Message" requires message', done)
+            }
+            node.emitS2Signal(msg.payload.s2Signal, [JSON.stringify(msg.payload.message)])
+            return successAndDone('Sent s2Signal "Message"', done)
+          case 'Disconnect':
+            if (!msg.payload.reason) {
+              return failAndDone('s2Signal "Disconnect" requires reason', done)
+            }
+            node.emitS2Signal(msg.payload.s2Signal, [msg.payload.reason])
+            return successAndDone('Sent s2Signal "Disconnect"', done)
+          default:
+            return failAndDone(`s2Signal "${msg.payload.s2Signal}" not implemented`, done)
+        }
+      }
+
       try {
         debugInput(`Setting values locally for node ${node.id}:`, msg.payload)
 
@@ -154,7 +343,7 @@ module.exports = function (RED) {
         node.status({
           fill: 'green',
           shape: 'dot',
-          text: `Updated ${pathCount} ${pathWord} (${node.iface.DeviceInstance})`
+          text: `Updated ${pathCount} ${pathWord} for ${config.device} (${node.iface.DeviceInstance})`
         })
         done()
       } catch (err) {
@@ -207,7 +396,9 @@ module.exports = function (RED) {
         return
       }
 
-      const serviceName = `com.victronenergy.switch.virtual_${self.id}`
+      const actualDeviceType = getActualDeviceType(config.device, config.generator_type)
+
+      const serviceName = `com.victronenergy.${actualDeviceType}.virtual_${self.id}`
       const interfaceName = serviceName
       const objectPath = `/${serviceName.replace(/\./g, '/')}`
 
@@ -258,6 +449,18 @@ module.exports = function (RED) {
         retryConnectionDelayed()
       })
 
+      if (!config.device || config.device === '') {
+        node.warn(
+          'No device configured'
+        )
+        node.status({
+          color: 'red',
+          shape: 'dot',
+          text: 'No device configured'
+        })
+        return
+      }
+
       async function callAddSettingsWithRetry (bus, settings, maxRetries = 10) {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
@@ -290,41 +493,54 @@ module.exports = function (RED) {
       }
 
       async function proceed (usedBus) {
+        // First, we need to create our interface description (here we will only expose method calls)
         const ifaceDesc = {
           name: interfaceName,
-          methods: {},
-          properties: {},
-          signals: {}
+          methods: {
+          },
+          properties: getIfaceDesc(actualDeviceType),
+          signals: {
+          }
         }
 
-        const iface = {
-          Status: 0,
-          Serial: node.id || '-'
+        // Then we need to create the interface implementation (with actual functions)
+        const iface = getIface(actualDeviceType)
+
+        iface.Status = 0
+        iface.Serial = node.id || '-'
+
+        let text = `Virtual ${config.device}`
+
+        // Device-specific configuration
+        const deviceModule = deviceModules[config.device]
+        if (deviceModule) {
+          const result = deviceModule.initialize(config, ifaceDesc, iface, node)
+          if (result != null) {
+            text = result
+          }
         }
-
-        createSwitchProperties(config, ifaceDesc, iface)
-
-        const text = getSwitchStatusText(config)
 
         if (hasPersistedState(RED, self.id)) {
-          debug(`Virtual switch (${self.id}) has persisted state, loading it.`)
+          debug(`Virtual device ${config.device} (${self.id}) has persisted state, loading it.`)
           await loadPersistedState(RED, self.id, iface, ifaceDesc)
         } else if (needsPersistedState(ifaceDesc)) {
-          debug(`Virtual switch (${self.id}) needs persisted state, but no state found. Initializing with defaults.`)
+          debug(`Virtual device ${config.device} (${self.id}) needs persisted state, but no state found. Initializing with defaults.`)
           await savePersistedState(RED, self.id, iface, ifaceDesc)
         }
 
+        // First we use addSettings to claim a deviceInstance
         let settingsResult = null
         try {
+          // First we use addSettings to claim a deviceInstance
           settingsResult = await callAddSettingsWithRetry(usedBus, [
             {
               path: `/Settings/Devices/virtual_${node.id}/ClassAndVrmInstance`,
-              default: 'switch:100',
+              default: `${actualDeviceType}:100`,
               type: 's'
             }
           ])
         } catch (error) {
-          console.error('Error in virtual switch setup:', error)
+          console.error('Error in virtual device setup:', error)
 
           node.status({
             color: 'red',
@@ -332,10 +548,14 @@ module.exports = function (RED) {
             text: `Setup failed: ${error.message || 'Unknown error'}`
           })
 
-          node.error('Virtual switch setup failed', error)
+          node.error('Virtual device setup failed', error)
           return
         }
 
+        // It looks like there are a few possibilities here:
+        // 1. We claimed this deviceInstance before, and we get the same one
+        // 2. a. The deviceInstance is already taken, and we get a new one
+        // 2. b. The deviceInstance is not taken, and we get the one we requested
         const getDeviceInstance = (result) => {
           try {
             const firstValue = result?.[0]?.[2]?.[1]?.[1]?.[0]?.split(':')[1]
@@ -363,15 +583,66 @@ module.exports = function (RED) {
           return null
         }
         iface.DeviceInstance = getDeviceInstance(settingsResult)
-        iface.CustomName = config.name || 'Virtual switch'
 
-        if (iface.DeviceInstance === null) {
+        // Migrate legacy ClassAndVrmInstance values ('generator', 'e-drive') to the correct
+        // D-Bus type. AddSettings only sets defaults so existing values are never overwritten
+        // automatically — we need an explicit SetValue to fix them.
+        const currentClassAndVrmInstance = settingsResult?.[0]?.[2]?.[1]?.[1]?.[0] || settingsResult?.[1]?.[0]
+        if (currentClassAndVrmInstance) {
+          const parts = currentClassAndVrmInstance.split(':')
+          const currentClass = parts[0]
+          const vrmInstance = parts[1]
+          if (currentClass !== actualDeviceType && !vrmInstance) {
+            throw new Error(`Invalid ClassAndVrmInstance value: ${currentClassAndVrmInstance}`)
+          }
+          if (currentClass !== actualDeviceType) {
+            const newValue = `${actualDeviceType}:${vrmInstance}`
+            const migrationSucceeded = await new Promise(resolve => {
+              usedBus.invoke({
+                path: `/Settings/Devices/virtual_${node.id}/ClassAndVrmInstance`,
+                destination: 'com.victronenergy.settings',
+                interface: 'com.victronenergy.BusItem',
+                member: 'SetValue',
+                body: [['s', newValue]],
+                signature: 'v'
+              }, (err) => {
+                if (err) {
+                  debug(`Failed to migrate ClassAndVrmInstance: ${err}`)
+                  resolve(false)
+                } else {
+                  debug(`Migrated ClassAndVrmInstance from ${currentClassAndVrmInstance} to ${newValue}`)
+                  resolve(true)
+                }
+              })
+            })
+            if (migrationSucceeded) {
+              // Re-read the actual assigned value — localsettings may have reassigned
+              // the VRM instance if the target class already had a conflict.
+              try {
+                const updatedResult = await callAddSettingsWithRetry(usedBus, [{
+                  path: `/Settings/Devices/virtual_${node.id}/ClassAndVrmInstance`,
+                  default: `${actualDeviceType}:${vrmInstance}`,
+                  type: 's'
+                }])
+                iface.DeviceInstance = getDeviceInstance(updatedResult)
+                debug(`DeviceInstance after migration: ${iface.DeviceInstance}`)
+              } catch (err) {
+                debug(`Failed to read back ClassAndVrmInstance after migration: ${err}`)
+              }
+            }
+          }
+        }
+
+        iface.CustomName = config.name || `Virtual ${config.device}`
+
+        if (iface.deviceInstance === null) {
           return // Exit early if we couldn't get a valid device instance
         }
 
         node.iface = iface
         node.ifaceDesc = ifaceDesc
 
+        // Now we need to actually export our interface on our object
         usedBus.exportInterface(iface, objectPath, ifaceDesc)
 
         usedBus.requestName(serviceName, 0x4, (err, retCode) => {
@@ -394,16 +665,22 @@ module.exports = function (RED) {
             debug(`Successfully requested service name "${serviceName}" (${retCode})`)
             // Store serviceName on node for cleanup during close
             if (retCode === 3) {
-              console.warn(`Service name "${serviceName}" already exists on the bus, this may result in undesired behavior.`)
-              node.warn(`Service name "${serviceName}" already exists on the bus, this may result in undesired behavior.`)
+              console.warn(`Service name "${serviceName}" for ${config.device} already exists on the bus, this may result in undesired behavior.`)
+              node.warn(`Service name "${serviceName}" for ${config.device} already exists on the bus, this may result in undesired behavior.`)
             }
             node.serviceName = serviceName
+            if (config.start_disconnected) {
+              node.bus.releaseName(node.serviceName, () => {
+                node.presenceConnected = false
+                node.status({ fill: 'grey', shape: 'ring', text: `${text} (${iface.DeviceInstance}) — offline` })
+              })
+            }
           } else {
             /* Other return codes means various errors, check here
             (https://dbus.freedesktop.org/doc/api/html/group__DBusShared.html#ga37a9bc7c6eb11d212bf8d5e5ff3b50f9) for more
             information */
             node.warn(
-              `Failed to request service name "${serviceName}". Check what return code "${retCode}" means.`
+              `Failed to request service name "${serviceName} for ${config.device}". Check what return code "${retCode}" means.`
             )
             node.status({
               color: 'red',
@@ -413,7 +690,12 @@ module.exports = function (RED) {
           }
         })
 
+        // TODO: S2: Should we rename this?
+        // We need to add a emitCallbackS2 for S2-related property changes
+        // to be able to react to imocoming connection requests and messages.
         function emitCallback (event, data) {
+          // we could use node.context().set('bla', 42) to set (and get) state, but state disappears on redeploy
+          // for global context: node.context().global.set('bla', 43)
           if (event !== 'ItemsChanged') {
             return
           }
@@ -428,9 +710,13 @@ module.exports = function (RED) {
             })
           }
 
-          handleSwitchOutputs(config, node, propName, propValue)
+          // Legacy support: Handle outputs for existing Virtual Device (switch) nodes
+          if (config.device === 'switch') {
+            handleSwitchOutputs(config, node, propName, propValue)
+          }
         }
 
+        // Then we can add the required Victron interfaces, and receive some functions to use
         const {
           removeSettings,
           getValue,
@@ -441,6 +727,9 @@ module.exports = function (RED) {
         node.setValuesLocally = setValuesLocally
         node.emitS2Signal = emitS2Signal
 
+        node.setPresence = makeSetPresence(node, text, iface)
+
+        // If there are pending calls, process them now
         node.pendingCallsToSetValuesLocally.forEach(([msg, done]) => {
           try {
             debugInput(`Processing pending message for node ${node.id}:`, msg)
@@ -453,6 +742,7 @@ module.exports = function (RED) {
 
         node.removeSettings = removeSettings
 
+        node.presenceConnected = true
         node.status({
           fill: 'green',
           shape: 'dot',
@@ -473,7 +763,6 @@ module.exports = function (RED) {
             if (getValueResult && getValueResult[1] && Array.isArray(getValueResult[1])) {
               const deviceEntries = getValueResult[1][0]
 
-              // Filter out devices that belong to active nodes in THIS instance
               // Get all active DBus services to check which virtual devices are actually active
               const activeServices = await new Promise((resolve, reject) => {
                 usedBus.listNames((error, services) => {
@@ -491,7 +780,7 @@ module.exports = function (RED) {
               // Only remove devices that are not active on DBus
               const devicesToRemove = filterInactiveVirtualDevices(deviceEntries, activeServices)
 
-              debug('Devices to remove (no active nodes):', devicesToRemove)
+              debug('Virtual devices to remove (no active nodes):', devicesToRemove)
 
               // Remove settings for each inactive virtual device
               if (devicesToRemove.length > 0 && removeSettings) {
@@ -546,6 +835,10 @@ module.exports = function (RED) {
       }
 
       function finishClose () {
+        // TODO: previously, we called end() on the connection only if no nodeInstances
+        // were left. Calling end() here resolves an issue with the VictronDbusListener
+        // not responding to ItemsChanged signals any more after a redeploy here:
+        // https://github.com/victronenergy/node-red-contrib-victron/blob/5626b44b426a3ab1c7d9a6a2d36f035f72d9faa2/src/services/dbus-listener.js#L309
         node.retryOnConnectionEnd = false
         node.bus.connection.end()
 
@@ -563,5 +856,5 @@ module.exports = function (RED) {
     })
   }
 
-  RED.nodes.registerType('victron-virtual-switch', VictronVirtualSwitchNode)
+  RED.nodes.registerType('victron-virtual', VictronVirtualNode)
 }

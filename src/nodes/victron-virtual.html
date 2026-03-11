@@ -69,7 +69,9 @@
             include_humidity: { value: false },
             include_pressure: { value: false },
             include_temp_battery: { value: false },
-            temp_battery_voltage: { value: 3.3 }
+            temp_battery_voltage: { value: 3.3 },
+            // presence
+            start_disconnected: { value: false, required: false }
         },
         icon: "victronenergy.svg",
         inputs:1,
@@ -125,53 +127,58 @@
             return 'Output ' + (index + 1)
         },
         oneditprepare: function oneditprepare() {
+            const self = this;
             const { checkSelectedVirtualDevice, updateOutputs, initializeTooltips } = window.__victron;
 
-            // Function to show/hide deprecation notice
             const toggleDeprecationNotice = (deviceType) => {
-                const noticeRow = $('#switch-deprecation-notice-row');
-                if (deviceType === 'switch') {
-                    noticeRow.show();
-                } else {
-                    noticeRow.hide();
-                }
+                $('#switch-deprecation-notice-row').toggle(deviceType === 'switch');
             };
 
-            // Show notice if device is already set to switch
-            toggleDeprecationNotice(this.device);
-
-            if (this.device === 'motordrive') {
-                this.device = 'e-drive';
+            if (self.device === 'motordrive') {
+                self.device = 'e-drive';
             }
 
-            if (this.id && this.changed === false && this.device && this.device !== '') {
-                $('#node-input-device')
-                    .prop('disabled', true)
-                    .attr('title', 'Device type cannot be changed after deployment.');
-            }
+            $.getJSON('/victron/virtual-device-types')
+                .done(function(deviceTypes) {
+                    const $select = $('#node-input-device');
+                    $select.empty();
+                    deviceTypes.forEach(function(dt) {
+                        $select.append($('<option>', { value: dt.value, text: dt.label }));
+                    });
+                    if (self.device) $select.val(self.device);
+                })
+                .fail(function() {
+                    console.error('Failed to load virtual device types');
+                })
+                .always(function() {
+                    toggleDeprecationNotice(self.device);
 
-            $('#node-input-device').on('change', (v) => {
-                checkSelectedVirtualDevice(this);
-                // Update outputs when device changes
-                this.device = v.target.value
-                updateOutputs(this);
-                // Show/hide deprecation notice based on selected device
-                toggleDeprecationNotice(this.device);
-            });
+                    if (self.id && self.changed === false && self.device && self.device !== '') {
+                        $('#node-input-device')
+                            .prop('disabled', true)
+                            .attr('title', 'Device type cannot be changed after deployment.');
+                    }
 
-            if (this.default_values === true) {
-                $('#node-input-default_values-yes').prop('checked', true);
-            } else {
-                $('#node-input-default_values-no').prop('checked', true);
-            }
+                    $('#node-input-device').on('change', (v) => {
+                        checkSelectedVirtualDevice(self);
+                        self.device = v.target.value;
+                        updateOutputs(self);
+                        toggleDeprecationNotice(self.device);
+                    });
 
-            // Initialize outputs on load
-            updateOutputs(this);
-            checkSelectedVirtualDevice(this);
+                    if (self.default_values === true) {
+                        $('#node-input-default_values-yes').prop('checked', true);
+                    } else {
+                        $('#node-input-default_values-no').prop('checked', true);
+                    }
 
-            if (typeof initializeTooltips === 'function') {
-                initializeTooltips();
-            }
+                    updateOutputs(self);
+                    checkSelectedVirtualDevice(self);
+
+                    if (typeof initializeTooltips === 'function') {
+                        initializeTooltips();
+                    }
+                });
         },
         oneditsave: function() {
             const { validateSwitchConfig, SWITCH_TYPE_CONFIGS, updateOutputs } = window.__victron;
@@ -181,7 +188,7 @@
             if (this.device === 'acload') {
                 // Ensure number of phases is valid
                 this.acload_nrofphases = parseInt(this.acload_nrofphases) || 1;
-                if (![1, 3].includes(this.acload_nrofphases)) {
+                if (![1, 2, 3].includes(this.acload_nrofphases)) {
                     this.acload_nrofphases = 1;
                 }
             }
@@ -261,19 +268,7 @@
         <input type="hidden" id="node-input-instance">
         <div class="form-row">
             <label for="node-input-device"><i class="fa fa-microchip"></i> Device</label>
-            <select id="node-input-device" required>
-                <option value="acload">AC Load</option>
-                <option value="battery">Battery</option>
-                <option value="e-drive">E-drive</option>
-                <option value="generator">Generator</option>
-                <option value="gps">GPS</option>
-                <option value="grid">Grid meter</option>
-                <option value="meteo">Meteo</option>
-                <option value="pvinverter">PV inverter</option>
-                <option value="switch">Switch (deprecated)</option>
-                <option value="tank">Tank sensor</option>
-                <option value="temperature">Temperature sensor</option>
-            </select>
+            <select id="node-input-device" required></select>
         </div>
         <div class="form-row" id="switch-deprecation-notice-row" style="display: none;">
             <div class="deprecation-notice">
@@ -289,6 +284,7 @@
             <label for="node-input-acload_nrofphases"><i class="fa fa-plug"></i> Number of phases</label>
             <select id="node-input-acload_nrofphases">
                 <option value="1">1 phase</option>
+                <option value="2">Split phase</option>
                 <option value="3">3 phase</option>
             </select>
         </div>
@@ -514,6 +510,14 @@
             </div>
         </div>
 
+        <div class="form-row victron-checkbox">
+            <input type="checkbox" id="node-input-start_disconnected">
+            <label for="node-input-start_disconnected">
+                Start disconnected
+                <i class="fa fa-info-circle tooltip-icon" data-tooltip="When checked, the device will not appear on the system until it receives msg.connected = true"></i>
+            </label>
+        </div>
+
         <div id="switch-docs-container"></div>
 
         <div class="form-row community-link-container">
@@ -597,6 +601,27 @@ update all specified properties and show the number of updated values in its sta
 
 If you want to set a single value, you can either use this way to send that single
 path + value combination (recommended) or use the _Custom Control_ node.
+
+### Device presence
+
+When the real-world device goes offline, the virtual device keeps broadcasting its last known values. To make the rest of the system aware that the device is gone, you can explicitly disconnect it from the dbus by sending `msg.connected = false`. The device will disappear from VRM and the GX display until you reconnect it with `msg.connected = true`.
+
+```javascript
+// Take the device offline
+msg.connected = false;
+return msg;
+
+// Bring it back online
+msg.connected = true;
+return msg;
+
+```
+
+When `msg.connected` is set, no payload processing takes place - the message is used solely for presence control. For normal value updates, omit `msg.connected`.
+
+Every output message from the node carries `msg.connected` indicating the current presence state (`true` when visible on the system, `false` when offline). The node status shows a grey ring when the device is intentionally offline.
+
+The _Start disconnected_ option in the edit dialog causes the device to remain invisible after deployment until it receives `msg.connected = true`. This is useful when the flow controls visibility based on whether data is actually being received.
 
 ### AC Load
 
@@ -704,6 +729,8 @@ humidity, pressure and battery voltage.
 ## Device Visibility
 
 Depending on the created device, it might not appear immediately on the GX device or VRM portal. You will need to write some values to it first. Alternatively, you could use _Initialize with default values_ to make it appear on the GX device directly. Please note that those default values may not be appropriate for your specific situation, but it can help to get you started.
+
+Use _Start disconnected_ if you want the device to remain invisible until your flow explicitly connects it with `msg.connected = true`. This is the recommended approach when the virtual device represents a real-world device whose availability is not guaranteed at startup.
 
 Also note that it might take a short while before the service on the dbus is actually created. So best practice is to wait a second before injecting data into the virtual device.
 
