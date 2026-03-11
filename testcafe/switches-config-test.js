@@ -80,20 +80,32 @@ async function dbus_SetValue(name, path, value) {
 
 async function dbus_GetValue(name, path) {
 	const command = `${SSH_COMMAND} "dbus-send --system --type=method_call --print-reply --dest='${name}' '${path}' com.victronenergy.BusItem.GetValue"`;
-	console.log(`Executing command: ${command}`);
-	return new Promise((resolve, reject) => {
-		exec(command, (error, stdout, stderr) => {
-			if (error) {
-				console.error(`Error executing command: ${error.message}`);
-				return reject(error);
+	// console.log(`Executing command: ${command}`);
+	// retry max 3 times
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			return new Promise((resolve, reject) => {
+				exec(command, (error, stdout, stderr) => {
+					if (error) {
+						console.error(`Error executing command: ${error.message}`);
+						return reject(error);
+					}
+					if (stderr) {
+						console.error(`Command stderr: ${stderr}`);
+					}
+					console.log(`Command stdout: ${stdout}`);
+					resolve(stdout);
+				});
+			});
+		} catch (error) {
+			console.error(`Attempt ${attempt} failed: ${error.message}`);
+			if (attempt === 3) {
+				throw error;
 			}
-			if (stderr) {
-				console.error(`Command stderr: ${stderr}`);
-			}
-			console.log(`Command stdout: ${stdout}`);
-			resolve(stdout);
-		});
-	});
+			// wait 1 second before retrying
+			await new Promise(resolve => setTimeout(resolve, 1000));
+		}
+	}
 }
 
 async function getExistingNodeIds() {
@@ -121,7 +133,7 @@ async function addVirtualSwitchNode(t) {
 		destinationOffsetY: nextNodeOffsetY
 	});
 
-	nextNodeOffsetY += 60;
+	nextNodeOffsetY += 30;
 
 	const nodeIdsAfter = await getExistingNodeIds();
 	console.log(`Existing node ids on workspace after adding virtual switch: ${nodeIdsAfter.join(', ')}`);
@@ -290,12 +302,70 @@ test('Test Switches, starting with empty flow', async t => {
 					switch_1_step: '0.5'
 				}
 			]
+		},
+		{
+			name: 'stepped1',
+			type: 'Stepped switch',
+			props: [
+				{
+					switch_1_max: '12',
+				}
+			]
+		},
+		{
+			name: 'dropdown1',
+			type: 'Dropdown',
+			props: [
+				{
+					switch_1_count: '3',
+					switch_1_value_0: 'option one',
+					switch_1_value_1: 'option two',
+					switch_1_value_2: 'option three',
+				}
+			]
+		},
+		{
+			name: 'slider1',
+			type: 'Basic slider',
+			props: [
+				{
+					switch_1_min: '0',
+					switch_1_max: '100',
+					switch_1_step: '2',
+					switch_1_unit: '%',
+				}
+			]
+		},
+		{
+			name: 'numeric1',
+			type: 'Numeric input',
+			props: [
+				{
+					switch_1_min: '-50',
+					switch_1_max: '70',
+					switch_1_step: '0.5',
+					switch_1_unit: '°C',
+				}
+			]
+		},
+		{
+			name: 'threestate1',
+			type: 'Three-state switch',
+		},
+		{
+			name: 'bilgepump1',
+			type: 'Bilge pump control',
+		},
+		{
+			name: 'rgb1',
+			type: 'RGB control',
 		}
 	]
 
 	for (const switchConfig of switchesToTest) {
+		console.log(`Testing switch type: ${switchConfig.type}, name: ${switchConfig.name}`);
 		const newSwitchId = await addVirtualSwitchNode(t);
-		console.log(`New virtual switch node id: ${newSwitchId}`);
+		console.log(`New virtual switch node id: ${newSwitchId}, name: ${switchConfig.name}, type: ${switchConfig.type}`);
 
 		const options = [
 			{ name: 'name', value: switchConfig.name },
