@@ -70,6 +70,23 @@ function searchDeviceInstanceByName (stack, needle, fallback) {
   return fallback
 }
 
+const initServiceDenylist = [
+  'com.victronenergy.ble',
+  'com.victronenergy.vecan.can0',
+  'com.victronenergy.adc',
+  'com.victronenergy.settings',
+  'com.victronenergy.digitalinputs',
+  'com.victronenergy.fronius',
+  'com.victronenergy.modbusclient.tcp',
+  'com.victronenergy.modbustcp',
+  'com.victronenergy.shelly',
+  'com.victronenergy.logger'
+]
+
+const initServiceAllowlistRegexes = [
+  /^com\.victronenergy\..+/ // anything beginning with 'com.victronenergy.' is allowed
+]
+
 class VictronDbusListener {
   constructor (address, callbacks) {
     this.address = address
@@ -116,8 +133,17 @@ class VictronDbusListener {
 
         this.bus.listNames((props, args) => {
           args.forEach(name => {
-            debug(`listNames, found service: ${name}`)
-            if (name.startsWith('com.victronenergy')) { this.bus.getNameOwner(name, (props, args) => this._initService(args, name)) }
+            console.log(`listNames, found service: ${name}`)
+            if (initServiceDenylist.includes(name)) {
+              console.log(`listNames, ${name} is denied.`)
+            } else if (initServiceAllowlistRegexes.some(
+              regex => name.match(regex)
+            )) {
+              console.log(`listNames, ${name} is allowed.`)
+              this.bus.getNameOwner(name, (props, args) => this._initService(args, name))
+            } else {
+              console.log(`listNames, ${name} is neither denied nor allowed.`)
+            }
           })
         })
 
@@ -171,6 +197,8 @@ class VictronDbusListener {
   async _initService (owner, name) {
     const service = { name }
 
+    console.log(`Initializing service ${name} with owner ${owner}`)
+
     // check if service supports GetValue on /DeviceInstance, which is required to
     // get the device instance number.
     const isGetValueSupported = await new Promise((resolve) => {
@@ -187,7 +215,7 @@ class VictronDbusListener {
         }
         const xml = res
         const hasGetValue = xml.includes('<method name="GetValue"')
-        debug(`Service ${name} supports GetValue on /DeviceInstance: ${hasGetValue}`)
+        console.log(`Service ${name} supports GetValue on /DeviceInstance: ${hasGetValue}`)
         resolve(hasGetValue)
       })
     })
