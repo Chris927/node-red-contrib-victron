@@ -6,6 +6,7 @@
 const dbus = require('dbus-native-victron')
 const { processItemsChanged } = require('./core/dbus-message-processor')
 const debug = require('debug')('node-red-contrib-victron:dbus')
+const debugListNames = require('debug')('node-red-contrib-victron:dbus-list-names')
 const _ = require('lodash')
 
 /**
@@ -133,16 +134,16 @@ class VictronDbusListener {
 
         this.bus.listNames((props, args) => {
           args.forEach(name => {
-            console.log(`listNames, found service: ${name}`)
+            debugListNames(`listNames, found service: ${name}`)
             if (initServiceDenylist.includes(name)) {
-              console.log(`listNames, ${name} is denied.`)
+              debugListNames(`listNames, ${name} is denied.`)
             } else if (initServiceAllowlistRegexes.some(
               regex => name.match(regex)
             )) {
-              console.log(`listNames, ${name} is allowed.`)
+              debugListNames(`listNames, ${name} is allowed.`)
               this.bus.getNameOwner(name, (props, args) => this._initService(args, name))
             } else {
-              console.log(`listNames, ${name} is neither denied nor allowed.`)
+              debugListNames(`listNames, ${name} is neither denied nor allowed.`)
             }
           })
         })
@@ -209,7 +210,7 @@ class VictronDbusListener {
       (err, res) => {
         this.services[owner] = service
         if (err) {
-          console.log(`initService ${name}, invoke on path /DeviceInstance : ${err}`)
+          console.warn(`initService ${name}, error calling GetValue on /DeviceInstance : ${err}`)
         }
         if (res) {
           const deviceInstance = res[1]?.[0]
