@@ -87,6 +87,8 @@ const initServiceAllowlistRegexes = [
   /^com\.victronenergy\..+/ // anything beginning with 'com.victronenergy.' is allowed
 ]
 
+const serviceNamesWithoutDeviceInstance = ['com.victronenergy.settings']
+
 class VictronDbusListener {
   constructor (address, callbacks) {
     this.address = address
@@ -202,8 +204,7 @@ class VictronDbusListener {
     this.services[owner] = service
 
     const deviceInstance = await new Promise((resolve) => {
-      const namesToSkip = ['com.victronenergy.settings']
-      if (namesToSkip.includes(name)) {
+      if (serviceNamesWithoutDeviceInstance.includes(name)) {
         debug(`Skipping retrieving /DeviceInstance of service ${name} as it is in the skip list.`)
         return resolve(null)
       } else {
