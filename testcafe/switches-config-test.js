@@ -84,7 +84,7 @@ async function dbus_GetValue(name, path) {
 	// retry max 3 times
 	for (let attempt = 1; attempt <= 3; attempt++) {
 		try {
-			return new Promise((resolve, reject) => {
+			const result = await new Promise((resolve, reject) => {
 				exec(command, (error, stdout, stderr) => {
 					if (error) {
 						console.error(`Error executing command: ${error.message}`);
@@ -97,6 +97,7 @@ async function dbus_GetValue(name, path) {
 					resolve(stdout);
 				});
 			});
+			return result;
 		} catch (error) {
 			console.error(`Attempt ${attempt} failed: ${error.message}`);
 			if (attempt === 3) {
@@ -406,8 +407,6 @@ test('Test Switches, starting with empty flow', async t => {
 		await assertVirtualSwitchHasDbusValue(
 			t, newSwitchId, '/SwitchableOutput/output_1/Settings/Type', `int32 ${getSwitchTypeCodeForName(getOptionsValue('switch_1_type'))}`);
 	}
-
-
 
 });
 
