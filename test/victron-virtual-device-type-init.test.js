@@ -3,6 +3,7 @@
 
 const acload = require('../src/nodes/victron-virtual/device-type/acload')
 const battery = require('../src/nodes/victron-virtual/device-type/battery')
+const ev = require('../src/nodes/victron-virtual/device-type/ev')
 const generator = require('../src/nodes/victron-virtual/device-type/generator')
 const gps = require('../src/nodes/victron-virtual/device-type/gps')
 const grid = require('../src/nodes/victron-virtual/device-type/grid')
@@ -12,6 +13,7 @@ const pvinverter = require('../src/nodes/victron-virtual/device-type/pvinverter'
 const switchMod = require('../src/nodes/victron-virtual/device-type/switch')
 const tank = require('../src/nodes/victron-virtual/device-type/tank')
 const temperature = require('../src/nodes/victron-virtual/device-type/temperature')
+const energymeter = require('../src/nodes/victron-virtual/device-type/energymeter')
 
 function makeFixtures () {
   return {
@@ -128,6 +130,135 @@ describe('battery', () => {
       const { ifaceDesc, iface, node } = makeFixtures()
       const result = battery.initialize({ battery_capacity: 25 }, ifaceDesc, iface, node)
       expect(result).toBe('Virtual 25Ah battery')
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// ev
+// ---------------------------------------------------------------------------
+
+describe('ev', () => {
+  describe('initialize', () => {
+    test('returns "Virtual EV"', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      const result = ev.initialize({}, ifaceDesc, iface, node)
+      expect(result).toBe('Virtual EV')
+    })
+
+    test('sets VIN from config', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      ev.initialize({ ev_vin: 'KNAC381B5S5628089' }, ifaceDesc, iface, node)
+      expect(iface.VIN).toBe('KNAC381B5S5628089')
+    })
+
+    test('does not set VIN when not provided', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      ev.initialize({}, ifaceDesc, iface, node)
+      expect(iface.VIN).toBeUndefined()
+    })
+
+    test('sets BatteryCapacity from config', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      ev.initialize({ ev_battery_capacity: 60 }, ifaceDesc, iface, node)
+      expect(iface.BatteryCapacity).toBe(60)
+    })
+
+    test('ignores empty BatteryCapacity', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      ev.initialize({ ev_battery_capacity: '' }, ifaceDesc, iface, node)
+      expect(iface.BatteryCapacity).toBeUndefined()
+    })
+
+    test('ignores non-numeric BatteryCapacity', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      ev.initialize({ ev_battery_capacity: 'invalid' }, ifaceDesc, iface, node)
+      expect(iface.BatteryCapacity).toBeUndefined()
+    })
+  })
+
+  describe('format', () => {
+    test('Ac/Power formats watts', () => {
+      expect(ev.properties['Ac/Power'].format(8000)).toBe('8000W')
+      expect(ev.properties['Ac/Power'].format(null)).toBe('')
+    })
+
+    test('Soc formats percentage', () => {
+      expect(ev.properties.Soc.format(70)).toBe('70%')
+      expect(ev.properties.Soc.format(null)).toBe('')
+    })
+
+    test('TargetSoc formats percentage', () => {
+      expect(ev.properties.TargetSoc.format(80)).toBe('80%')
+      expect(ev.properties.TargetSoc.format(null)).toBe('')
+    })
+
+    const chargingStateFmt = ev.properties.ChargingState.format
+    test.each([
+      [0, 'Disconnected'],
+      [1, 'Connected'],
+      [2, 'Charging'],
+      [3, 'Charged'],
+      [5, 'Inverting'],
+      [6, 'Error'],
+      [7, 'Unknown'],
+      [99, 'unknown']
+    ])('ChargingState %i -> %s', (v, expected) => {
+      expect(chargingStateFmt(v)).toBe(expected)
+    })
+
+    test('BatteryCapacity formats kWh', () => {
+      expect(ev.properties.BatteryCapacity.format(60)).toBe('60kWh')
+      expect(ev.properties.BatteryCapacity.format(null)).toBe('')
+    })
+
+    test('Odometer formats km', () => {
+      expect(ev.properties.Odometer.format(21989)).toBe('21989km')
+      expect(ev.properties.Odometer.format(null)).toBe('')
+    })
+
+    test('RangeToGo formats km', () => {
+      expect(ev.properties.RangeToGo.format(266)).toBe('266km')
+      expect(ev.properties.RangeToGo.format(null)).toBe('')
+    })
+
+    test('Position/Latitude formats degrees', () => {
+      expect(ev.properties['Position/Latitude'].format(52.123456)).toBe('52.123456°')
+      expect(ev.properties['Position/Latitude'].format(null)).toBe('')
+    })
+
+    test('Position/Longitude formats degrees', () => {
+      expect(ev.properties['Position/Longitude'].format(4.654321)).toBe('4.654321°')
+      expect(ev.properties['Position/Longitude'].format(null)).toBe('')
+    })
+
+    const atSiteFmt = ev.properties.AtSite.format
+    test.each([
+      [0, 'No'],
+      [1, 'Yes'],
+      [99, 'unknown']
+    ])('AtSite %i -> %s', (v, expected) => {
+      expect(atSiteFmt(v)).toBe(expected)
+    })
+
+    test('LastEvContact formats null as empty string', () => {
+      expect(ev.properties.LastEvContact.format(null)).toBe('')
+    })
+
+    test('LastEvContact formats unix timestamp as date string', () => {
+      // 2025-01-15 12:00:00 UTC
+      const result = ev.properties.LastEvContact.format(1736942400)
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+    })
+
+    test('Alarms/StarterBatteryLow returns value as-is', () => {
+      expect(ev.properties['Alarms/StarterBatteryLow'].format(0)).toBe(0)
+      expect(ev.properties['Alarms/StarterBatteryLow'].format(1)).toBe(1)
+    })
+
+    test('Connected returns value as-is', () => {
+      expect(ev.properties.Connected.format(1)).toBe(1)
+      expect(ev.properties.Connected.format(0)).toBe(0)
     })
   })
 })
@@ -633,6 +764,93 @@ describe('temperature', () => {
       [99, 'unknown']
     ])('TemperatureType %i → %s', (v, expected) => {
       expect(fmt(v)).toBe(expected)
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// energymeter
+// ---------------------------------------------------------------------------
+
+describe('energymeter', () => {
+  describe('properties', () => {
+    it('defines properties, and handles "Position" property with correct format', () => {
+      expect(energymeter.properties).toBeDefined()
+      expect(typeof energymeter.properties).toBe('function')
+
+      // a grid meter should not have Position or PositionIsAdjustable
+      expect(energymeter.properties({ energymeter_role: 'gridmeter' }).Position).toBeUndefined()
+      expect(energymeter.properties({ energymeter_role: 'gridmeter' }).PositionIsAdjustable).toBeUndefined()
+
+      // other roles have Position and PositionIsAdjustable
+      expect(energymeter.properties({}).Position).toBeDefined()
+      expect(energymeter.properties({}).PositionIsAdjustable).toBeDefined()
+
+      expect(energymeter.properties({}).Position.format(0)).toBe('output')
+      expect(energymeter.properties({}).Position.format(1)).toBe('input')
+    })
+  })
+
+  describe('getServiceType', () => {
+    it('maps each role to the correct Venus OS service type', () => {
+      expect(energymeter.getServiceType({ energymeter_role: 'gridmeter' })).toBe('grid')
+      expect(energymeter.getServiceType({ energymeter_role: 'heatpump' })).toBe('heatpump')
+      expect(energymeter.getServiceType({ energymeter_role: 'acload' })).toBe('acload')
+      expect(energymeter.getServiceType({ energymeter_role: 'evcharger' })).toBe('evcharger')
+      expect(energymeter.getServiceType({ energymeter_role: 'inverter' })).toBe('pvinverter')
+      expect(energymeter.getServiceType({ energymeter_role: 'generator' })).toBe('genset')
+    })
+
+    it('defaults to "grid" for unknown roles', () => {
+      expect(energymeter.getServiceType({})).toBe('grid')
+      expect(energymeter.getServiceType({ energymeter_role: 'unknown' })).toBe('grid')
+    })
+  })
+
+  describe('shared properties', () => {
+    it('provides a format function for each property', () => {
+      const props = energymeter.__sharedProperties
+      for (const [, prop] of Object.entries(props)) {
+        expect(prop.format).toBeDefined()
+        expect(typeof prop.format).toBe('function')
+        expect(prop.format(null)).toBeDefined()
+      }
+    })
+  })
+
+  describe('initialize', () => {
+    it('adds phase properties based on "energymeter_nrofphases" config', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+
+      energymeter.initialize({ energymeter_nrofphases: 1 }, ifaceDesc, iface, node)
+      expect(ifaceDesc.properties['Ac/L1/Current']).toBeDefined()
+      expect(ifaceDesc.properties['Ac/L2/Current']).toBeUndefined()
+      expect(ifaceDesc.properties['Ac/L3/Current']).toBeUndefined()
+
+      // ensure the format function is available
+      expect(ifaceDesc.properties['Ac/L1/Current'].format).toBeDefined()
+      expect(typeof ifaceDesc.properties['Ac/L1/Current'].format).toBe('function')
+      expect(typeof ifaceDesc.properties['Ac/L1/Current'].format(0)).toBeDefined()
+
+      const { ifaceDesc: desc2, iface: iface2, node: node2 } = makeFixtures()
+      energymeter.initialize({ energymeter_nrofphases: 3 }, desc2, iface2, node2)
+      expect(desc2.properties['Ac/L1/Current']).toBeDefined()
+      expect(desc2.properties['Ac/L2/Current']).toBeDefined()
+      expect(desc2.properties['Ac/L3/Current']).toBeDefined()
+    })
+
+    it('honors "config.default_values"', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+
+      energymeter.initialize({ default_values: false }, ifaceDesc, iface, node)
+      expect(iface['Ac/Power']).toBeUndefined()
+      expect(iface['Ac/Energy/Forward']).toBeUndefined()
+      expect(iface['Ac/Energy/Reverse']).toBeUndefined()
+
+      energymeter.initialize({ default_values: true }, ifaceDesc, iface, node)
+      expect(iface['Ac/Power']).toBe(0)
+      expect(iface['Ac/Energy/Forward']).toBe(0)
+      expect(iface['Ac/Energy/Reverse']).toBe(0)
     })
   })
 })
