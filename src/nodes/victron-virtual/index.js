@@ -408,6 +408,7 @@ module.exports = function (RED) {
 
       const actualDeviceType = getActualDeviceType(config.device, config.generator_type)
       const dbusServiceType = deviceModules[config.device]?.getServiceType?.(config) ?? actualDeviceType
+      const onPropertiesChanged = deviceModules[config.device]?.onPropertiesChanged
 
       const serviceName = `com.victronenergy.${dbusServiceType}.virtual_${self.id}`
       const interfaceName = serviceName
@@ -709,10 +710,6 @@ module.exports = function (RED) {
         // We need to add a emitCallbackS2 for S2-related property changes
         // to be able to react to imocoming connection requests and messages.
 
-        // Track properties set as derived values so emitCallback skips re-processing them.
-        // This prevents infinite recursion when onPropertyChanged calls setValuesLocally.
-        const skipOnPropertyChanged = new Set()
-
         function emitCallback (event, data) {
           // we could use node.context().set('bla', 42) to set (and get) state, but state disappears on redeploy
           // for global context: node.context().global.set('bla', 43)
@@ -734,29 +731,6 @@ module.exports = function (RED) {
           if (config.device === 'switch') {
             handleSwitchOutputs(config, node, propName, propValue)
           }
-
-          // Skip onPropertyChanged for properties set as derived values (e.g. auto-updated LastEvContact)
-          if (skipOnPropertyChanged.has(propName)) {
-            skipOnPropertyChanged.delete(propName)
-            return
-          }
-
-          // Allow device modules to react to property changes and compute derived values
-          const deviceModule = deviceModules[config.device]
-          if (deviceModule && typeof deviceModule.onPropertyChanged === 'function' && node.setValuesLocally) {
-            const result = deviceModule.onPropertyChanged(propName, propValue, iface, config)
-            if (result != null) {
-              if (result.setValues) {
-                Object.keys(result.setValues).forEach(k => skipOnPropertyChanged.add(k))
-                node.setValuesLocally(result.setValues)
-              }
-              if (result.msg != null) {
-                const outputs = new Array(config.outputs).fill(null)
-                outputs[result.outputIndex] = result.msg
-                node.send(outputs)
-              }
-            }
-          }
         }
 
         // Then we can add the required Victron interfaces, and receive some functions to use
@@ -765,7 +739,7 @@ module.exports = function (RED) {
           getValue,
           setValuesLocally,
           emitS2Signal
-        } = addVictronInterfaces(usedBus, ifaceDesc, iface, /* add_defaults */ true, emitCallback)
+        } = addVictronInterfaces(usedBus, ifaceDesc, iface, /* add_defaults */ true, emitCallback, onPropertiesChanged)
 
         node.setValuesLocally = setValuesLocally
         node.emitS2Signal = emitS2Signal

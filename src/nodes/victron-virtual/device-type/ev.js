@@ -52,13 +52,12 @@ function initialize (config, _ifaceDesc, iface, _node) {
   return 'Virtual EV'
 }
 
-function onPropertyChanged (propName, _propValue, _iface, _config) {
-  if (propName === 'LastEvContact') {
-    return
+function onPropertiesChanged ({ changes /* , instance */ }) {
+  if (!changes.LastEvContact) {
+    // Only update LastEvContact if it wasn't explicitly changed by the caller
+    changes.LastEvContact = Math.floor(Date.now() / 1000)
   }
-  return {
-    setValues: { LastEvContact: Math.floor(Date.now() / 1000) }
-  }
+  return changes
 }
 
-module.exports = { properties, initialize, onPropertyChanged, label: 'Electric Vehicle' }
+module.exports = { properties, initialize, onPropertiesChanged, label: 'Electric Vehicle' }
