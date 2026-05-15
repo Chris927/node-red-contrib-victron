@@ -277,8 +277,8 @@ test('Test Switches, starting with empty flow', async t => {
 	console.log(`Tab for flow ${flowId} is active`);
 
 	// add a virtual switch node
-	const newSwitch1Id = await addVirtualSwitchNode(t);
-	console.log(`New virtual switch node id: ${newSwitch1Id}`);
+	// const newSwitch1Id = await addVirtualSwitchNode(t);
+	// console.log(`New virtual switch node id: ${newSwitch1Id}`);
 
 	const switchesToTest = [
 		{
@@ -398,8 +398,13 @@ test('Test Switches, starting with empty flow', async t => {
 		await deploy(t);
 
 		// assert the node is visible via dbus with the correct values
-		await assertVirtualSwitchHasDbusValue(
-			t, newSwitchId, '/SwitchableOutput/output_1/State', 'int32 0');
+		if (switchConfig.type === 'Numeric input') {
+			await assertVirtualSwitchHasDbusValue(
+				t, newSwitchId, '/SwitchableOutput/output_1/Dimming', 'double 0');
+		} else {
+			await assertVirtualSwitchHasDbusValue(
+				t, newSwitchId, '/SwitchableOutput/output_1/State', 'int32 0');
+		}
 		await assertVirtualSwitchHasDbusValue(
 			t, newSwitchId, '/SwitchableOutput/output_1/Settings/CustomName', `string "${getOptionsValue('name')}"`);
 		await assertVirtualSwitchHasDbusValue(
