@@ -3,12 +3,14 @@
 
 const acload = require('../src/nodes/victron-virtual/device-type/acload')
 const battery = require('../src/nodes/victron-virtual/device-type/battery')
+const dcload = require('../src/nodes/victron-virtual/device-type/dcload')
 const ev = require('../src/nodes/victron-virtual/device-type/ev')
 const generator = require('../src/nodes/victron-virtual/device-type/generator')
 const gps = require('../src/nodes/victron-virtual/device-type/gps')
 const grid = require('../src/nodes/victron-virtual/device-type/grid')
 const meteo = require('../src/nodes/victron-virtual/device-type/meteo')
 const motordrive = require('../src/nodes/victron-virtual/device-type/motordrive')
+const pulsemeter = require('../src/nodes/victron-virtual/device-type/pulsemeter')
 const pvinverter = require('../src/nodes/victron-virtual/device-type/pvinverter')
 const switchMod = require('../src/nodes/victron-virtual/device-type/switch')
 const tank = require('../src/nodes/victron-virtual/device-type/tank')
@@ -135,6 +137,52 @@ describe('battery', () => {
 })
 
 // ---------------------------------------------------------------------------
+// dcload
+// ---------------------------------------------------------------------------
+
+describe('dcload', () => {
+  describe('properties', () => {
+    test('has required DC paths', () => {
+      expect(dcload.properties['Dc/0/Current']).toBeDefined()
+      expect(dcload.properties['Dc/0/Power']).toBeDefined()
+      expect(dcload.properties['Dc/0/Voltage']).toBeDefined()
+    })
+
+    test('Settings/MonitorMode has value 1', () => {
+      expect(dcload.properties['Settings/MonitorMode'].value).toBe(1)
+    })
+
+    test('DC paths have immediate: true', () => {
+      expect(dcload.properties['Dc/0/Current'].immediate).toBe(true)
+      expect(dcload.properties['Dc/0/Power'].immediate).toBe(true)
+      expect(dcload.properties['Dc/0/Voltage'].immediate).toBe(true)
+    })
+  })
+
+  describe('initialize', () => {
+    test('sets default values when enabled', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      dcload.initialize({ default_values: true }, ifaceDesc, iface, node)
+      expect(iface['Dc/0/Current']).toBe(0)
+      expect(iface['Dc/0/Power']).toBe(0)
+      expect(iface['Dc/0/Voltage']).toBe(0)
+    })
+
+    test('does not set default values when disabled', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      dcload.initialize({ default_values: false }, ifaceDesc, iface, node)
+      expect(iface['Dc/0/Current']).toBeUndefined()
+    })
+
+    test('returns label string', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      const result = dcload.initialize({}, ifaceDesc, iface, node)
+      expect(result).toBe('Virtual DC load')
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ev
 // ---------------------------------------------------------------------------
 
@@ -195,13 +243,16 @@ describe('ev', () => {
 
     const chargingStateFmt = ev.properties.ChargingState.format
     test.each([
-      [0, 'Disconnected'],
-      [1, 'Connected'],
-      [2, 'Charging'],
-      [3, 'Charged'],
-      [5, 'Inverting'],
-      [6, 'Error'],
-      [7, 'Unknown'],
+      [0, 'Not charging'],
+      [1, 'Low power mode'],
+      [3, 'Charging'],
+      [244, 'Sustain'],
+      [245, 'Wake up'],
+      [250, 'Blocked'],
+      [255, 'Unavailable'],
+      [256, 'Discharging'],
+      [259, 'Scheduled charging'],
+      [2, 'unknown'],
       [99, 'unknown']
     ])('ChargingState %i -> %s', (v, expected) => {
       expect(chargingStateFmt(v)).toBe(expected)
@@ -241,13 +292,13 @@ describe('ev', () => {
       expect(atSiteFmt(v)).toBe(expected)
     })
 
-    test('LastEvContact formats null as empty string', () => {
-      expect(ev.properties.LastEvContact.format(null)).toBe('')
+    test('LastUpdated/ProviderContact formats null as empty string', () => {
+      expect(ev.properties['LastUpdated/ProviderContact'].format(null)).toBe('')
     })
 
-    test('LastEvContact formats unix timestamp as date string', () => {
+    test('LastUpdated/ProviderContact formats unix timestamp as date string', () => {
       // 2025-01-15 12:00:00 UTC
-      const result = ev.properties.LastEvContact.format(1736942400)
+      const result = ev.properties['LastUpdated/ProviderContact'].format(1736942400)
       expect(result).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
     })
 
@@ -268,6 +319,12 @@ describe('ev', () => {
 // ---------------------------------------------------------------------------
 
 describe('generator', () => {
+  describe('productType', () => {
+    it('does not export productType so the library resolves it from the service name', () => {
+      expect(generator.productType).toBeUndefined()
+    })
+  })
+
   describe('initialize', () => {
     test('AC 1-phase adds L1 properties and sets NrOfPhases', () => {
       const { ifaceDesc, iface, node } = makeFixtures()
@@ -453,6 +510,12 @@ describe('meteo', () => {
 // ---------------------------------------------------------------------------
 
 describe('motordrive', () => {
+  describe('productType', () => {
+    it('does not export productType so the library resolves it from the service name', () => {
+      expect(motordrive.productType).toBeUndefined()
+    })
+  })
+
   describe('initialize', () => {
     test('removes Motor/Temperature when not included', () => {
       const { ifaceDesc, iface, node } = makeFixtures()
@@ -529,6 +592,49 @@ describe('motordrive', () => {
       [99, 'unknown']
     ])('Motor/Direction %i → %s', (v, expected) => {
       expect(fmt(v)).toBe(expected)
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// pulsemeter
+// ---------------------------------------------------------------------------
+
+describe('pulsemeter', () => {
+  describe('initialize', () => {
+    test('returns status text', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      const result = pulsemeter.initialize({}, ifaceDesc, iface, node)
+      expect(result).toBe('Virtual pulse meter')
+    })
+
+    test('does not modify ifaceDesc or iface', () => {
+      const { ifaceDesc, iface, node } = makeFixtures()
+      pulsemeter.initialize({}, ifaceDesc, iface, node)
+      expect(Object.keys(ifaceDesc.properties)).toHaveLength(0)
+      expect(Object.keys(iface)).toHaveLength(0)
+    })
+  })
+
+  describe('format', () => {
+    const countFmt = pulsemeter.properties.Count.format
+    const aggregateFmt = pulsemeter.properties.Aggregate.format
+
+    test.each([
+      [0, '0'],
+      [1000, '1000'],
+      [null, '']
+    ])('Count %s -> %s', (v, expected) => {
+      expect(countFmt(v)).toBe(expected)
+    })
+
+    test.each([
+      [1.0, '1.000m³'],
+      [0.5, '0.500m³'],
+      [1234.5678, '1234.568m³'],
+      [null, '']
+    ])('Aggregate %s -> %s', (v, expected) => {
+      expect(aggregateFmt(v)).toBe(expected)
     })
   })
 })
@@ -815,6 +921,18 @@ describe('energymeter', () => {
         expect(typeof prop.format).toBe('function')
         expect(prop.format(null)).toBeDefined()
       }
+    })
+
+    it('Ac/Energy/Forward and Ac/Energy/Reverse have no default value to avoid spurious delta on first real write', () => {
+      const props = energymeter.__sharedProperties
+      expect(props['Ac/Energy/Forward'].value).toBeUndefined()
+      expect(props['Ac/Energy/Reverse'].value).toBeUndefined()
+    })
+  })
+
+  describe('productType', () => {
+    it('exports productType as "energymeter" so index.js can override the D-Bus service name', () => {
+      expect(energymeter.productType).toBe('energymeter')
     })
   })
 

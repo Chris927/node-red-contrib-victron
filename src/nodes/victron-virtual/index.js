@@ -13,9 +13,11 @@ const { validateVirtualDevicePayload, validateLightControls, debounce } = requir
 const { handleSwitchOutputs } = require('../../services/virtual-switch')
 const { filterInactiveVirtualDevices } = require('../../services/virtual-device-cleanup')
 const { makeSetPresence } = require('./helpers')
+const { registerInputHandler, flushPendingInputs, createDebouncedSetters } = require('../victron-virtual-dbus-helpers')
 
 const acloadModule = require('./device-type/acload')
 const batteryModule = require('./device-type/battery')
+const dcloadModule = require('./device-type/dcload')
 const evModule = require('./device-type/ev')
 const generatorModule = require('./device-type/generator')
 const gpsModule = require('./device-type/gps')
@@ -42,6 +44,7 @@ process.on('unhandledRejection', (reason, promise) => {
 const properties = {
   acload: acloadModule.properties,
   battery: batteryModule.properties,
+  dcload: dcloadModule.properties,
   ev: evModule.properties,
   temperature: temperatureModule.properties,
   genset: generatorModule.properties.genset,
@@ -59,6 +62,7 @@ const properties = {
 const deviceModules = {
   acload: acloadModule,
   battery: batteryModule,
+  dcload: dcloadModule,
   ev: evModule,
   generator: generatorModule,
   gps: gpsModule,
@@ -75,6 +79,7 @@ const deviceModules = {
 const DEVICE_TYPES = [
   { value: 'acload', label: 'AC Load' },
   { value: 'battery', label: 'Battery' },
+  { value: 'dcload', label: 'DC Load' },
   { value: 'e-drive', label: 'E-drive' },
   { value: 'ev', label: 'Electric Vehicle' },
   { value: 'generator', label: 'Generator' },
@@ -142,22 +147,19 @@ function getIfaceDesc (actualDev, config) {
 }
 
 function getIface (actualDev, config) {
-  if (!properties[actualDev]) {
-    return {
-      emit: function () {
-      }
-    }
-  }
-
   const result = {
     emit: function () {
     }
   }
 
+  if (!properties[actualDev]) {
+    return result
+  }
+
   const ifaceProperties = typeof properties[actualDev] === 'function' ? properties[actualDev](config) : properties[actualDev]
 
   for (const key in ifaceProperties) {
-    const propertyValue = JSON.parse(JSON.stringify(ifaceProperties[key]))
+    const propertyValue = ifaceProperties[key]
 
     if (propertyValue.value !== undefined) {
       result[key] = propertyValue.value
@@ -200,31 +202,8 @@ module.exports = function (RED) {
 
     node.retryOnConnectionEnd = true
     node.presenceConnected = false
-    node.pendingCallsToSetValuesLocally = []
 
-    const debouncedSetters = new Map()
-
-    function shouldApplyImmediately (key) {
-      if (node.ifaceDesc && node.ifaceDesc.properties && node.ifaceDesc.properties[key]) {
-        return node.ifaceDesc.properties[key].immediate === true
-      }
-      return false
-    }
-
-    function getDebouncedSetter (key) {
-      if (!debouncedSetters.has(key)) {
-        const setter = debounce((value) => {
-          debugInput(`Applying debounced value for ${key}: ${value}`)
-          try {
-            node.setValuesLocally({ [key]: value })
-          } catch (err) {
-            node.error(`Failed to apply debounced value for ${key}: ${err.message}`)
-          }
-        }, DEBOUNCE_DELAY_MS)
-        debouncedSetters.set(key, setter)
-      }
-      return debouncedSetters.get(key)
-    }
+    const { shouldApplyImmediately, getDebouncedSetter } = createDebouncedSetters(node, debounce, DEBOUNCE_DELAY_MS)
 
     function handleInput (msg, done) {
       // Send passthrough message FIRST, before any validation
@@ -367,18 +346,7 @@ module.exports = function (RED) {
       }
     }
 
-    this.on('input', function (msg, _send, done) {
-      if (!node.setValuesLocally) {
-        // we cannot call setValuesLocally yet, so we queue the message
-        node.pendingCallsToSetValuesLocally.push([msg, done])
-        debugInput(
-          `Node ${node.id} is not ready to handle input yet, queuing message. Pending calls: ${node.pendingCallsToSetValuesLocally.length}`
-        )
-        return
-      }
-
-      handleInput(msg, done)
-    })
+    registerInputHandler(node, debugInput, handleInput)
 
     function instantiateDbus (self) {
       debug('instantiateDbus called for node', self.id, nodeInstances)
@@ -408,6 +376,7 @@ module.exports = function (RED) {
 
       const actualDeviceType = getActualDeviceType(config.device, config.generator_type)
       const dbusServiceType = deviceModules[config.device]?.getServiceType?.(config) ?? actualDeviceType
+      const onPropertiesChanged = deviceModules[config.device]?.onPropertiesChanged
 
       const serviceName = `com.victronenergy.${dbusServiceType}.virtual_${self.id}`
       const interfaceName = serviceName
@@ -514,8 +483,9 @@ module.exports = function (RED) {
           }
         }
 
-        if (dbusServiceType !== config.device) {
-          ifaceDesc.productType = config.device
+        const moduleProductType = deviceModules[config.device]?.productType
+        if (moduleProductType) {
+          ifaceDesc.productType = moduleProductType
         }
 
         // Then we need to create the interface implementation (with actual functions)
@@ -708,6 +678,7 @@ module.exports = function (RED) {
         // TODO: S2: Should we rename this?
         // We need to add a emitCallbackS2 for S2-related property changes
         // to be able to react to imocoming connection requests and messages.
+
         function emitCallback (event, data) {
           // we could use node.context().set('bla', 42) to set (and get) state, but state disappears on redeploy
           // for global context: node.context().global.set('bla', 43)
@@ -737,23 +708,25 @@ module.exports = function (RED) {
           getValue,
           setValuesLocally,
           emitS2Signal
-        } = addVictronInterfaces(usedBus, ifaceDesc, iface, /* add_defaults */ true, emitCallback)
+        } = addVictronInterfaces(usedBus, ifaceDesc, iface, /* add_defaults */ true, emitCallback,
+          /* onPropertiesChanged */ function ({ changes, instance }) {
+            if (typeof onPropertiesChanged === 'function') {
+              /**
+               * We wrap onPropertiesChanged, so that we can pass the config as well.
+              */
+              return onPropertiesChanged({ changes, instance, config })
+            } else {
+              return changes
+            }
+          }
+        )
 
         node.setValuesLocally = setValuesLocally
         node.emitS2Signal = emitS2Signal
 
         node.setPresence = makeSetPresence(node, text, iface)
 
-        // If there are pending calls, process them now
-        node.pendingCallsToSetValuesLocally.forEach(([msg, done]) => {
-          try {
-            debugInput(`Processing pending message for node ${node.id}:`, msg)
-            handleInput(msg, done)
-          } catch (err) {
-            node.error(`Failed to set values locally for pending message: ${err.message}`, msg)
-          }
-        })
-        node.pendingCallsToSetValuesLocally = []
+        flushPendingInputs(node, handleInput)
 
         node.removeSettings = removeSettings
 

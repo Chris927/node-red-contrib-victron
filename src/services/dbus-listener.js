@@ -246,7 +246,7 @@ class VictronDbusListener {
       (err, res) => {
         if (err) {
           console.warn(`Unable to request root for service ${service.name}, this is fine when reconnecting.`)
-          const matchIfVirtual = service.name.match(/^com\.victronenergy\.(\w+)\.virtual_*/)
+          const matchIfVirtual = service.name.match(/^com\.victronenergy\.(\w+)\.(virtual_|vindic_)/)
           if (matchIfVirtual) {
             return resolve()
           }
@@ -460,3 +460,4 @@ class VictronDbusListener {
 }
 
 module.exports = VictronDbusListener
+module.exports.serviceNamesWithoutDeviceInstance = serviceNamesWithoutDeviceInstance

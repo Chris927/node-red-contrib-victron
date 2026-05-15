@@ -2,6 +2,7 @@
 import {
   checkGeneratorType,
   SWITCH_TYPE_CONFIGS,
+  INDICATOR_TYPE_LABELS,
   renderSwitchConfigRow,
   updateSwitchConfig,
   checkSelectedVirtualDevice,
@@ -10,14 +11,17 @@ import {
   updateBatteryVoltageVisibility,
   calculateOutputs,
   updateOutputs,
+  renderIndicatorDocBox,
   renderShowInUICheckboxes,
-  getShowUIValue
+  getShowUIValue,
+  getVirtualNodeLabel
 } from './victron-virtual-functions.js'
 import { initializeTooltips } from './victron-common.js'
 
 window.__victron = {
   checkGeneratorType,
   SWITCH_TYPE_CONFIGS,
+  INDICATOR_TYPE_LABELS,
   renderSwitchConfigRow,
   updateSwitchConfig,
   checkSelectedVirtualDevice,
@@ -26,7 +30,9 @@ window.__victron = {
   updateBatteryVoltageVisibility,
   calculateOutputs,
   updateOutputs,
+  renderIndicatorDocBox,
   renderShowInUICheckboxes,
   getShowUIValue,
-  initializeTooltips
+  initializeTooltips,
+  getVirtualNodeLabel
 }

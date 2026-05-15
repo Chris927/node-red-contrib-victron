@@ -31,7 +31,8 @@ class SystemConfiguration {
 
     const services = serviceEntries
       .reduce((acc, [dbusService, servicePaths]) => {
-        const cachedService = _.pickBy(this.cache, (val, key) => key.startsWith(`com.victronenergy.${dbusService}`))
+        const servicePrefix = `com.victronenergy.${dbusService}`
+        const cachedService = _.pickBy(this.cache, (val, key) => key === servicePrefix || key.startsWith(`${servicePrefix}.`) || key.startsWith(`${servicePrefix}/`))
 
         Object.keys(cachedService).forEach((dbusInterface) => {
           const cachedPaths = cachedService[dbusInterface]
@@ -52,15 +53,15 @@ class SystemConfiguration {
             const expanded = utils.expandWildcardPaths(pathObj, cachedPaths, dbusService)
 
             const filtered = expanded.filter(expandedPathObj =>
-              (!isOutput || (
-                (expandedPathObj.path !== '/Mode' || _.get(cachedPaths, '/ModeIsAdjustable', 1)) &&
-                (expandedPathObj.path !== '/Ac/In/1/CurrentLimit' || _.get(cachedPaths, '/Ac/In/1/CurrentLimitIsAdjustable', 1)) &&
-                (expandedPathObj.path !== '/Ac/In/2/CurrentLimit' || _.get(cachedPaths, '/Ac/In/2/CurrentLimitIsAdjustable', 1))
-              )) &&
               (expandedPathObj.mode === 'both' ||
               (isOutput && expandedPathObj.mode === 'output') ||
               (!isOutput && (expandedPathObj.mode === 'input' || !expandedPathObj.mode)))
-            )
+            ).map(expandedPathObj => {
+              if (cachedPaths[expandedPathObj.path] === null) {
+                return { ...expandedPathObj, name: `${expandedPathObj.name} - (null)` }
+              }
+              return expandedPathObj
+            })
 
             return pathAcc.concat(filtered)
           }, [])
@@ -216,6 +217,7 @@ class SystemConfiguration {
       'input-dcsystem': this.getNodeServices('input-dcsystem'),
       'input-digitalinput': this.getNodeServices('input-digitalinput'),
       'input-ess': this.getNodeServices('input-ess'),
+      'input-ev': this.getNodeServices('input-ev'),
       'input-evcharger': this.getNodeServices('input-evcharger'),
       'input-fuelcell': this.getNodeServices('input-fuelcell'),
       'input-generator': this.getNodeServices('input-generator'),
