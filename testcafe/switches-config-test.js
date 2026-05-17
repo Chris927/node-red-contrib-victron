@@ -1,4 +1,4 @@
-const { setupFlow, NODE_RED_ENDPOINT, getExistingNodeIds, dbus_GetValue, dbus_SetValue } = require('./utils.js');
+const { setupFlow, NODE_RED_ENDPOINT, getExistingNodeIds, dbus_GetValue, dbus_SetValue, confirmNodeDialog, deploy } = require('./utils.js');
 
 const { Selector } = require("testcafe");
 
@@ -71,19 +71,6 @@ async function configureVirtualSwitchNode(t, nodeId, options) {
 			throw new Error(`Unsupported option type: ${type}`);
 		}
 	}
-}
-
-async function confirmNodeDialog(t) {
-	await t.click('#node-dialog-ok');
-}
-
-async function deploy(t) {
-
-	await t.click('#red-ui-header-button-deploy');
-
-	const notification = Selector('#red-ui-notifications div p').innerText;
-	await t.expect(notification).eql('Successfully deployed');
-
 }
 
 test('My second test', async t => {

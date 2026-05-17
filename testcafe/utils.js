@@ -104,3 +104,49 @@ export async function getExistingNodeIds() {
   return Promise.all(Array.from({ length: count }, (_, i) => existingNodes.nth(i).getAttribute('id')));
 }
 
+export async function confirmNodeDialog(t) {
+  await t.click('#node-dialog-ok');
+}
+
+export async function deploy(t) {
+
+  await t.click('#red-ui-header-button-deploy');
+
+  const notification = Selector('#red-ui-notifications div p').innerText;
+  await t.expect(notification).eql('Successfully deployed');
+
+}
+
+let nextNodeOffsetY = 200;
+
+export function resetFlowNodeOffset() {
+  nextNodeOffsetY = 200;
+}
+
+export async function addNodeToCurrentFlow(t, nodePaletteType) {
+
+  /** Adds a node of the given palette type to the current flow by dragging it from the palette.
+   * Returns the id of the newly added node.
+   *
+   * TODO: similar to addVirtualSwitchNode() in ./switches-config-test.js, should be refactored.
+   */
+
+  const existingNodeIds = await getExistingNodeIds();
+  console.log(`Existing node ids on workspace before adding virtual switch: ${existingNodeIds.join(', ')}`);
+
+  const paletteItem = Selector(`.red-ui-palette-node[data-palette-type="${nodePaletteType}"]`).find('.red-ui-palette-label');
+  await t.dragToElement(paletteItem, Selector('#red-ui-workspace-chart'), {
+    destinationOffsetX: 400,
+    destinationOffsetY: nextNodeOffsetY
+  });
+
+  nextNodeOffsetY += 30;
+
+  const nodeIdsAfter = await getExistingNodeIds();
+  console.log(`Existing node ids on workspace after adding virtual switch: ${nodeIdsAfter.join(', ')}`);
+  const newNodeIds = nodeIdsAfter.filter(id => !existingNodeIds.includes(id));
+  if (newNodeIds.length !== 1) {
+    throw new Error(`Expected exactly one new node to be added, but found ${newNodeIds.length}. Existing nodes: ${existingNodeIds.join(', ')}, nodes after: ${nodeIdsAfter.join(', ')}`);
+  }
+  return newNodeIds[0];
+}
