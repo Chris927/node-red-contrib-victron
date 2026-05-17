@@ -1,9 +1,6 @@
-const { exec } = require('child_process');
-const { setupFlow, NODE_RED_ENDPOINT } = require('./utils.js');
+const { setupFlow, NODE_RED_ENDPOINT, getExistingNodeIds, dbus_GetValue, dbus_SetValue } = require('./utils.js');
 
 const { Selector } = require("testcafe");
-
-const SSH_COMMAND = process.env.SSH_COMMAND || 'ssh -p 2232 root@localhost';
 
 const { SWITCH_TYPE_MAP, SWITCH_TYPE_NAMES } = require('../src/nodes/victron-virtual-constants.js');
 
@@ -20,63 +17,6 @@ fixture('Getting Started 2')
 	.page(NODE_RED_ENDPOINT);
 
 console.log('Running tests with custom configuration');
-
-async function dbus_SetValue(name, path, value) {
-	const command = `${SSH_COMMAND} "dbus-send --system --type=method_call --print-reply --dest='${name}' '${path}' com.victronenergy.BusItem.SetValue '${value}'"`;
-	console.log(`Executing command: ${command}`);
-	return new Promise((resolve, reject) => {
-		exec(command, (error, stdout, stderr) => {
-			if (error) {
-				console.error(`Error executing command: ${error.message}`);
-				return reject(error);
-			}
-			if (stderr) {
-				console.error(`Command stderr: ${stderr}`);
-			}
-			console.log(`Command stdout: ${stdout}`);
-			resolve(stdout);
-		});
-	});
-}
-
-async function dbus_GetValue(name, path) {
-	const command = `${SSH_COMMAND} "dbus-send --system --type=method_call --print-reply --dest='${name}' '${path}' com.victronenergy.BusItem.GetValue"`;
-	// console.log(`Executing command: ${command}`);
-	// retry max 3 times
-	for (let attempt = 1; attempt <= 3; attempt++) {
-		try {
-			const result = await new Promise((resolve, reject) => {
-				exec(command, (error, stdout, stderr) => {
-					if (error) {
-						console.error(`Error executing command: ${error.message}`);
-						return reject(error);
-					}
-					if (stderr) {
-						console.error(`Command stderr: ${stderr}`);
-					}
-					console.log(`Command stdout: ${stdout}`);
-					resolve(stdout);
-				});
-			});
-			return result;
-		} catch (error) {
-			console.error(`Attempt ${attempt} failed: ${error.message}`);
-			if (attempt === 3) {
-				throw error;
-			}
-			// wait 1 second before retrying
-			await new Promise(resolve => setTimeout(resolve, 1000));
-		}
-	}
-}
-
-async function getExistingNodeIds() {
-	const existingNodes = Selector('#red-ui-workspace-chart .red-ui-flow-node.red-ui-flow-node-group');
-	// iterate all that match
-	const count = await existingNodes.count;
-	console.log(`Found ${count} existing nodes on workspace`);
-	return Promise.all(Array.from({ length: count }, (_, i) => existingNodes.nth(i).getAttribute('id')));
-}
 
 let nextNodeOffsetY = 200;
 
