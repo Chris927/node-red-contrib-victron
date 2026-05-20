@@ -1,5 +1,5 @@
 const { exec } = require('child_process');
-const { setupFlow, NODE_RED_ENDPOINT, addNodeToCurrentFlow, resetFlowNodeOffset, confirmNodeDialog } = require('./utils.js');
+const { setupFlow, NODE_RED_ENDPOINT, addNodeToCurrentFlow, resetFlowNodeOffset, confirmNodeDialog, deploy } = require('./utils.js');
 
 const { Selector } = require("testcafe");
 
@@ -28,7 +28,7 @@ async function configureVirtualDeviceNode(t, nodeId, device, properties) {
 
       if (type === 'checkbox') {
         if (value) {
-          await t.click(inputSelector);
+          await t.click(Selector(`#node-input-${name} + label`));
         }
       } else if (type === 'text') {
         // clear existing text
@@ -98,6 +98,7 @@ test('Deploy virtual devices', async t => {
   }
 
   // and deploy
+  await deploy(t);
 
 });
 
