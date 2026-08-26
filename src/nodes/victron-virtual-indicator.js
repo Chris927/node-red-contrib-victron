@@ -1,6 +1,5 @@
 const { addVictronInterfaces } = require('dbus-victron-virtual')
 const { needsPersistedState, hasPersistedState, loadPersistedState, savePersistedState } = require('./persist')
-const dbus = require('dbus-native-victron')
 const debug = require('debug')('victron-virtual-indicator')
 const debugInput = require('debug')('victron-virtual-indicator:input')
 const debugConnection = require('debug')('victron-virtual-indicator:connection')
@@ -8,15 +7,7 @@ const { DEBOUNCE_DELAY_MS } = require('./victron-virtual-constants')
 const { validateVirtualDevicePayload, debounce } = require('../services/utils')
 const { createIndicatorProperties, updateIndicatorStatus, expandIndicatorPayload, INDICATOR_INPUT_KEY } = require('../services/virtual-indicator')
 const { filterInactiveVirtualDevices } = require('../services/virtual-device-cleanup')
-const { sanitizeIdForDbus, getTcpBusAddress, callAddSettingsWithRetry, getDeviceInstance, registerInputHandler, flushPendingInputs, createDebouncedSetters } = require('./victron-virtual-dbus-helpers')
-
-function createClientCallback (err) {
-  if (err) {
-    console.error('[VictronVirtualIndicatorNode] Failed to create DBus client:', err)
-  } else {
-    debug('[VictronDbusListener] Successfully created DBus client.')
-  }
-}
+const { getTcpBusAddress, instantiateDbus, callAddSettingsWithRetry, getDeviceInstance, registerInputHandler, flushPendingInputs, createDebouncedSetters } = require('./victron-virtual-dbus-helpers')
 
 module.exports = function (RED) {
   let hasRunOnce = false
@@ -103,70 +94,40 @@ module.exports = function (RED) {
 
     registerInputHandler(node, debugInput, handleInput)
 
-    function instantiateDbus (self) {
-      if (self.address) {
-        self.bus = dbus.createClient({ busAddress: self.address, authMethods: ['ANONYMOUS'] }, (err) => {
-          if (err) {
+    function instantiateDbusForIndicator (self) {
+      instantiateDbus(self, {
+        node,
+        debug,
+        getServiceName: dbusId => `com.victronenergy.switch.vindic_${dbusId}`,
+        onCreateError: (err) => {
+          if (self.address) {
             console.error(`Failed to connect to DBus at ${self.address}:`, err)
             node.warn(`Failed to connect to DBus at ${self.address}: ${err.message || err}`)
             node.status({ color: 'red', shape: 'dot', text: `Failed to connect to DBus at ${self.address}` })
           } else {
-            debugConnection(`Connected to DBus at ${self.address}`)
+            console.error('[VictronVirtualIndicatorNode] Failed to create DBus client:', err)
           }
-        })
-      } else {
-        // TODO: must add callbacks here, too. Compare ./victron-virtual/index.js createClient
-        self.bus = process.env.DBUS_SESSION_BUS_ADDRESS
-          ? dbus.sessionBus({}, createClientCallback)
-          : dbus.systemBus({}, createClientCallback)
-      }
-
-      if (!self.bus) {
-        node.warn('Could not connect to the DBus session bus.')
-        node.status({ color: 'red', shape: 'dot', text: 'Could not connect to the DBus session bus.' })
-        return
-      }
-
-      // The indicator uses the switch service type: a digital switching device
-      // typically has both inputs and outputs; the indicator only uses the input
-      // side, but it is the closest available fit on Venus OS.
-      const dbusId = sanitizeIdForDbus(self.id)
-      const serviceName = `com.victronenergy.switch.vindic_${dbusId}`
-      const interfaceName = serviceName
-      const objectPath = `/${serviceName.replace(/\./g, '/')}`
-
-      let retrying = false
-
-      function retryConnectionDelayed () {
-        if (retrying) return
-        retrying = true
-        new Promise(resolve => setTimeout(resolve, 1000)).then(() => {
-          instantiateDbus(self)
-        }).finally(() => {
-          retrying = false
-        })
-      }
-
-      self.bus.connection.on('connect', () => {
-        debugConnection('DBus connection established for', interfaceName)
-        self.connected = true
-      })
-
-      self.bus.connection.on('end', () => {
-        self.connected = false
-        node.status({ color: 'red', shape: 'dot', text: 'DBus connection closed' })
-        if (self.retryOnConnectionEnd) {
+        },
+        onConnect: (interfaceName) => {
+          debugConnection('DBus connection established for', interfaceName)
+          self.connected = true
+        },
+        onEnd: (_interfaceName, retryConnectionDelayed) => {
+          self.connected = false
+          node.status({ color: 'red', shape: 'dot', text: 'DBus connection closed' })
+          if (self.retryOnConnectionEnd) retryConnectionDelayed()
+        },
+        onError: (err, _interfaceName, retryConnectionDelayed) => {
+          console.error(`DBus error: ${err}`)
+          node.status({ color: 'red', shape: 'dot', text: 'DBus error' })
           retryConnectionDelayed()
+        },
+        onReady: ({ bus, dbusId, serviceName, interfaceName, objectPath }) => {
+          proceed(bus, dbusId, serviceName, interfaceName, objectPath)
         }
       })
 
-      self.bus.connection.on('error', (err) => {
-        console.error(`DBus error: ${err}`)
-        node.status({ color: 'red', shape: 'dot', text: 'DBus error' })
-        retryConnectionDelayed()
-      })
-
-      async function proceed (usedBus) {
+      async function proceed (usedBus, dbusId, serviceName, interfaceName, objectPath) {
         const ifaceDesc = { name: interfaceName, methods: {}, properties: {}, signals: {} }
         const iface = { Status: 0, Serial: node.id || '-' }
 
@@ -286,11 +247,9 @@ module.exports = function (RED) {
           }, 10000)
         }
       }
-
-      proceed(self.bus)
     }
 
-    instantiateDbus(this)
+    instantiateDbusForIndicator(this)
 
     node.on('close', function (done) {
       nodeInstances.delete(node)

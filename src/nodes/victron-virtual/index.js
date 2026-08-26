@@ -1,8 +1,7 @@
 const fs = require('fs')
 const path = require('path')
-const { addVictronInterfaces, addSettings } = require('dbus-victron-virtual')
+const { addVictronInterfaces } = require('dbus-victron-virtual')
 const { needsPersistedState, hasPersistedState, loadPersistedState, savePersistedState, flushPersistedState } = require('../persist')
-const dbus = require('dbus-native-victron')
 const debug = require('debug')('victron-virtual')
 const debugInput = require('debug')('victron-virtual:input')
 const debugConnection = require('debug')('victron-virtual:connection')
@@ -13,7 +12,7 @@ const { validateVirtualDevicePayload, validateLightControls, debounce } = requir
 const { handleSwitchOutputs } = require('../../services/virtual-switch')
 const { filterInactiveVirtualDevices } = require('../../services/virtual-device-cleanup')
 const { makeSetPresence } = require('./helpers')
-const { sanitizeIdForDbus, registerInputHandler, flushPendingInputs, createDebouncedSetters } = require('../victron-virtual-dbus-helpers')
+const { instantiateDbus, callAddSettingsWithRetry, registerInputHandler, flushPendingInputs, createDebouncedSetters } = require('../victron-virtual-dbus-helpers')
 
 const acloadModule = require('./device-type/acload')
 const batteryModule = require('./device-type/battery')
@@ -384,104 +383,41 @@ module.exports = function (RED) {
 
     registerInputHandler(node, debugInput, handleInput)
 
-    function instantiateDbus (self) {
-      debug('instantiateDbus called for node', self.id, nodeInstances)
-      // Connect to the dbus
-      if (self.address) {
-        debug(`Connecting to TCP address ${self.address}.`)
-        self.bus = dbus.createClient({
-          busAddress: self.address,
-          authMethods: ['ANONYMOUS']
-        }, (err, _) => {
-          if (err) {
-            console.error(`Failed to create DBus client for address ${self.address}:`, err)
-          } else {
-            debug(`Successfully created DBus client for address ${self.address}`)
-          }
-        })
-      } else {
-        self.bus = process.env.DBUS_SESSION_BUS_ADDRESS
-          ? dbus.sessionBus({}, (err) => {
-            if (err) {
-              console.error('Failed to connect to DBus session bus:', err)
-            } else {
-              console.log('Successfully connected to DBus session bus')
-            }
-          })
-          : dbus.systemBus({}, (err) => {
-            if (err) {
-              console.error('Failed to connect to DBus system bus:', err)
-            } else {
-              console.log('Successfully connected to DBus system bus')
-            }
-          })
-      }
-      if (!self.bus) {
-        node.warn(
-          'Could not connect to the DBus session bus.'
-        )
-        node.status({
-          color: 'red',
-          shape: 'dot',
-          text: 'Could not connect to the DBus session bus.'
-        })
-        return
-      }
-
+    function instantiateDbusForDevice (self) {
       const actualDeviceType = getActualDeviceType(config.device, config.generator_type)
       const dbusServiceType = deviceModules[config.device]?.getServiceType?.(config) ?? actualDeviceType
       const onPropertiesChanged = deviceModules[config.device]?.onPropertiesChanged
 
-      const dbusId = sanitizeIdForDbus(self.id)
-      const serviceName = `com.victronenergy.${dbusServiceType}.virtual_${dbusId}`
-      const interfaceName = serviceName
-      const objectPath = `/${serviceName.replace(/\./g, '/')}`
-
-      let retrying = false
-
-      function retryConnectionDelayed () {
-        if (retrying) {
-          debugConnection('Already retrying DBus connection, skipping this retry.')
-          return
-        }
-        retrying = true
-        new Promise(resolve => setTimeout(resolve, 1000)).then(() => {
-          debug('Retrying DBus connection...')
-          instantiateDbus(self)
-        }).finally(() => {
-          retrying = false
-        })
-      }
-
-      self.bus.connection.on('connect', () => {
-        debugConnection('DBus connection established for interface', interfaceName)
-        self.connected = true
-      })
-
-      self.bus.connection.on('end', () => {
-        self.connected = false
-        node.status({
-          color: 'red',
-          shape: 'dot',
-          text: 'DBus connection closed'
-        })
-        debugConnection('DBus connection closed, retrying...')
-        if (self.retryOnConnectionEnd) {
+      instantiateDbus(self, {
+        node,
+        debug,
+        getServiceName: dbusId => `com.victronenergy.${dbusServiceType}.virtual_${dbusId}`,
+        onCreateError: (err) => {
+          if (self.address) console.error(`Failed to create DBus client for address ${self.address}:`, err)
+          else console.error('Failed to connect to DBus session bus:', err)
+        },
+        onConnect: (interfaceName) => {
+          debugConnection('DBus connection established for interface', interfaceName)
+          self.connected = true
+        },
+        onEnd: (interfaceName, retryConnectionDelayed) => {
+          self.connected = false
+          node.status({ color: 'red', shape: 'dot', text: 'DBus connection closed' })
+          debugConnection('DBus connection closed, retrying...')
+          if (self.retryOnConnectionEnd) retryConnectionDelayed()
+          else debug('Not retrying DBus connection, as retryOnConnectionEnd is false.', interfaceName)
+        },
+        onError: (err, _interfaceName, retryConnectionDelayed) => {
+          console.error(`DBus error: ${err}`)
+          debugConnection('DBus connection error:', err)
+          node.status({ color: 'red', shape: 'dot', text: 'DBus error' })
           retryConnectionDelayed()
-        } else {
-          debug('Not retrying DBus connection, as retryOnConnectionEnd is false.', interfaceName)
+        },
+        onReady: ({ bus, dbusId, serviceName, interfaceName, objectPath }) => {
+          if (config.device && config.device !== '') {
+            proceed(bus, dbusId, serviceName, interfaceName, objectPath)
+          }
         }
-      })
-
-      self.bus.connection.on('error', (err) => {
-        console.error(`DBus error: ${err}`)
-        debugConnection('DBus connection error:', err)
-        node.status({
-          color: 'red',
-          shape: 'dot',
-          text: 'DBus error'
-        })
-        retryConnectionDelayed()
       })
 
       if (!config.device || config.device === '') {
@@ -493,41 +429,9 @@ module.exports = function (RED) {
           shape: 'dot',
           text: 'No device configured'
         })
-        return
       }
 
-      async function callAddSettingsWithRetry (bus, settings, maxRetries = 10) {
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-          try {
-            const result = await addSettings(bus, settings)
-            return result
-          } catch (error) {
-            let errorMessage = ''
-            if (Array.isArray(error)) {
-              errorMessage = error.join(', ')
-            } else if (error && error.message) {
-              errorMessage = error.message
-            } else {
-              errorMessage = String(error)
-            }
-            const isServiceUnavailable =
-              errorMessage.includes('org.freedesktop.DBus.Error.ServiceUnknown') ||
-              errorMessage.includes('com.victronenergy.settings') ||
-              errorMessage.includes('No such service') ||
-              errorMessage.includes('was not provided by any .service files')
-
-            if (!isServiceUnavailable || attempt === maxRetries - 1) {
-              throw error
-            }
-
-            const delay = Math.min(1000 * Math.pow(2, attempt), 10000) // Exponential backoff, max 10s
-            debug(`Settings service unavailable, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
-            await new Promise(resolve => setTimeout(resolve, delay))
-          }
-        }
-      }
-
-      async function proceed (usedBus) {
+      async function proceed (usedBus, dbusId, serviceName, interfaceName, objectPath) {
         // First, we need to create our interface description (here we will only expose method calls)
         const ifaceDesc = {
           name: interfaceName,
@@ -866,10 +770,9 @@ module.exports = function (RED) {
           }, 10000)
         }
       }
-      proceed(self.bus)
     }
 
-    instantiateDbus(this)
+    instantiateDbusForDevice(this)
 
     node.on('close', function (done) {
       nodeInstances.delete(node)

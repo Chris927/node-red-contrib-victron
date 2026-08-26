@@ -1,4 +1,5 @@
 const { addSettings } = require('dbus-victron-virtual')
+const dbus = require('dbus-native-victron')
 const debug = require('debug')('victron-virtual')
 
 /**
@@ -22,6 +23,75 @@ function getTcpBusAddress () {
     return `tcp:host=${parts[0]},port=${parts[1]}`
   }
   return null
+}
+
+/**
+ * Creates a D-Bus connection and installs the shared connection lifecycle handlers.
+ * The caller supplies service naming and callbacks for node-specific logging/status behavior.
+ */
+function instantiateDbus (self, options = {}) {
+  const {
+    getServiceName,
+    onConnect = () => {},
+    onEnd = () => {},
+    onError = () => {},
+    onCreateError = onError,
+    onReady = () => {},
+    debug: debugFn = debug,
+    node = self
+  } = options
+
+  debugFn('instantiateDbus called for node', self.id)
+
+  function createClientCallback (err) {
+    if (err) onCreateError(err)
+  }
+
+  if (self.address) {
+    debugFn(`Connecting to TCP address ${self.address}.`)
+    self.bus = dbus.createClient({
+      busAddress: self.address,
+      authMethods: ['ANONYMOUS']
+    }, createClientCallback)
+  } else {
+    self.bus = process.env.DBUS_SESSION_BUS_ADDRESS
+      ? dbus.sessionBus({}, createClientCallback)
+      : dbus.systemBus({}, createClientCallback)
+  }
+
+  if (!self.bus) {
+    node.warn('Could not connect to the DBus session bus.')
+    node.status({ color: 'red', shape: 'dot', text: 'Could not connect to the DBus session bus.' })
+    return null
+  }
+
+  const dbusId = sanitizeIdForDbus(self.id)
+  const serviceName = getServiceName(dbusId)
+  const interfaceName = serviceName
+  const objectPath = `/${serviceName.replace(/\./g, '/')}`
+  let retrying = false
+
+  function retryConnectionDelayed () {
+    if (retrying) {
+      debugFn('Already retrying DBus connection, skipping this retry.')
+      return
+    }
+    retrying = true
+    new Promise(resolve => setTimeout(resolve, 1000)).then(() => {
+      debugFn('Retrying DBus connection...')
+      instantiateDbus(self, options)
+    }).finally(() => {
+      retrying = false
+    })
+  }
+
+  self.bus.connection.on('connect', () => onConnect(interfaceName))
+  self.bus.connection.on('end', () => onEnd(interfaceName, retryConnectionDelayed))
+  self.bus.connection.on('error', (err) => onError(err, interfaceName, retryConnectionDelayed))
+
+  const result = { bus: self.bus, dbusId, serviceName, interfaceName, objectPath }
+  onReady(result)
+  return result
 }
 
 /**
@@ -134,4 +204,4 @@ function createDebouncedSetters (node, debounce, delayMs) {
   return { shouldApplyImmediately, getDebouncedSetter }
 }
 
-module.exports = { sanitizeIdForDbus, getTcpBusAddress, callAddSettingsWithRetry, getDeviceInstance, registerInputHandler, flushPendingInputs, createDebouncedSetters }
+module.exports = { sanitizeIdForDbus, getTcpBusAddress, instantiateDbus, callAddSettingsWithRetry, getDeviceInstance, registerInputHandler, flushPendingInputs, createDebouncedSetters }
