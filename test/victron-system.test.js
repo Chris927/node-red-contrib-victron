@@ -44,6 +44,58 @@ describe('Alternator /Mode control (Orion XS in Charger mode)', () => {
   })
 })
 
+// Orion XS emergency (reverse) charging, see venus-private#662. Exposed on the
+// .alternator service (charging the main battery) and on the .dcdc service
+// (charging an aux battery), but not in PSU mode.
+describe.each(['alternator', 'dcdc'])('Orion XS emergency charging on %s', (serviceName) => {
+  let systemConfig
+
+  beforeEach(() => {
+    systemConfig = new SystemConfiguration()
+    systemConfig.cache = {
+      [`com.victronenergy.${serviceName}.ttyUSB0`]: {
+        '/ProductName': 'Orion XS',
+        '/DeviceInstance': 0,
+        '/EmergencyCharge/Control': 2,
+        '/EmergencyCharge/ChargingCountdown': 0,
+        '/EmergencyCharge/BlockedCountdown': 0
+      }
+    }
+  })
+
+  test('/EmergencyCharge/Control is a writable enum with the documented states', () => {
+    const control = servicesJson[serviceName][serviceName].find(p => p.path === '/EmergencyCharge/Control')
+    expect(control).toBeDefined()
+    expect(control.type).toBe('enum')
+    expect(control.mode).toBe('both')
+    expect(Object.keys(control.enum).sort()).toEqual(['0', '2', '3'])
+  })
+
+  test('/State includes the reverse charging states', () => {
+    const state = servicesJson[serviceName][serviceName].find(p => p.path === '/State')
+    expect(state.enum['242']).toBe('Reverse charging blocked')
+    expect(state.enum['243']).toBe('Reverse charging')
+  })
+
+  test(`output-${serviceName} offers only /EmergencyCharge/Control for writing`, () => {
+    const result = systemConfig.getNodeServices(`output-${serviceName}`)
+    const paths = result.services[0].paths.map(p => p.path)
+    expect(paths).toContain('/EmergencyCharge/Control')
+    expect(paths).not.toContain('/EmergencyCharge/ChargingCountdown')
+    expect(paths).not.toContain('/EmergencyCharge/BlockedCountdown')
+  })
+
+  test(`input-${serviceName} offers all emergency charge paths for reading`, () => {
+    const result = systemConfig.getNodeServices(`input-${serviceName}`)
+    const paths = result.services[0].paths.map(p => p.path)
+    expect(paths).toEqual(expect.arrayContaining([
+      '/EmergencyCharge/Control',
+      '/EmergencyCharge/ChargingCountdown',
+      '/EmergencyCharge/BlockedCountdown'
+    ]))
+  })
+})
+
 describe('getNodeServices null value handling', () => {
   let systemConfig
   let originalServices
@@ -325,5 +377,42 @@ describe('ESS battery status reason codes (issue #342)', () => {
     for (const essPath of ESS_REASON_PATHS) {
       expect(exposedPaths).toContain(essPath)
     }
+  })
+})
+
+describe('heatpump SwitchableOutput support (Shelly relays used to control a heat pump)', () => {
+  let systemConfig
+
+  beforeEach(() => {
+    systemConfig = new SystemConfiguration()
+    systemConfig.cache = {
+      'com.victronenergy.heatpump.shelly_D885AC1B38F4_0': {
+        '/DeviceInstance': 40,
+        '/CustomName': 'Kelder - heating',
+        '/SwitchableOutput/0/State': 1,
+        '/SwitchableOutput/0/Status': 1,
+        '/SwitchableOutput/0/Settings/CustomName': 'Kelder - heating'
+      }
+    }
+  })
+
+  test('output-switch node whitelist includes a heatpump entry', () => {
+    expect(servicesJson.switch.heatpump).toBeDefined()
+    expect(servicesJson.switch.heatpump.find(p => p.path === '/SwitchableOutput/{type}/State')).toBeDefined()
+  })
+
+  test('output-switch node exposes the heatpump service SwitchableOutput/State path', () => {
+    const result = systemConfig.getNodeServices('output-switch')
+    const heatpumpService = result.services.find(s => s.service.startsWith('com.victronenergy.heatpump'))
+    expect(heatpumpService).toBeDefined()
+    const statePath = heatpumpService.paths.find(p => p.path === '/SwitchableOutput/0/State')
+    expect(statePath).toBeDefined()
+  })
+
+  test('SwitchableOutput display name uses the CustomName, matching switch behaviour', () => {
+    const result = systemConfig.getNodeServices('output-switch')
+    const heatpumpService = result.services.find(s => s.service.startsWith('com.victronenergy.heatpump'))
+    const statePath = heatpumpService.paths.find(p => p.path === '/SwitchableOutput/0/State')
+    expect(statePath.name).toBe('Kelder - heating state')
   })
 })

@@ -384,7 +384,7 @@ export const DEVICE_TYPE_DOCS = {
           <li><code>/Ac/{phase}/Voltage</code> &mdash; Voltage per phase in volts.</li>
           <li><code>/Ac/{phase}/Current</code> &mdash; Current per phase in amperes.</li>
           <li><code>/Ac/Frequency</code> &mdash; AC frequency in Hz.</li>
-          <li><code>/Engine/OperatingHours</code> &mdash; Engine operating hours (if enabled).</li>
+          <li><code>/Engine/OperatingHours</code> &mdash; Engine operating time in seconds (if enabled).</li>
           <li><code>/StarterVoltage</code> &mdash; Starter battery voltage in volts (if enabled).</li>
         </ul>
         <p><em>DC Generator (dcgenset):</em></p>
@@ -569,7 +569,7 @@ export const DEVICE_TYPE_DOCS = {
           <li><code>/Temperature</code> &mdash; Temperature in °C.</li>
           <li><code>/TemperatureType</code> &mdash; Sensor type: <code>0</code> = Battery, <code>1</code> = Fridge, <code>2</code> = Generic, <code>3</code> = Room, <code>4</code> = Outdoor, <code>5</code> = Water heater, <code>6</code> = Freezer.</li>
           <li><code>/Humidity</code> &mdash; Humidity as a percentage (if enabled).</li>
-          <li><code>/Pressure</code> &mdash; Atmospheric pressure in kPa (if enabled).</li>
+          <li><code>/Pressure</code> &mdash; Atmospheric pressure in hPa (if enabled).</li>
           <li><code>/BatteryVoltage</code> &mdash; Sensor battery voltage in volts (if enabled).</li>
         </ul>
         <p>For more information on available paths, see the <a href="https://github.com/victronenergy/venus/wiki/dbus" target="_blank" rel="noopener noreferrer" class="blue-link">Venus OS dbus specification</a>.</p>
@@ -626,6 +626,7 @@ export const DEVICE_TYPE_DOCS = {
           <li><code>/Ac/{line}/Current</code> &mdash; Current per phase in amperes.</li>
           <li><code>/Ac/{line}/Energy/Forward</code> &mdash; Energy consumed per phase in kWh.</li>
           <li><code>/Ac/Frequency</code> &mdash; AC frequency in Hz.</li>
+          <li><code>/Position</code>: 0 = AC output, 1 = AC input.</li>
         </ul>
         <p>Measurement-only - does not simulate a full EVSE (no charging session or connector state). Registers as <code>com.victronenergy.evcharger</code>.</p>
         <p>For more information on available paths, see the <a href="https://github.com/victronenergy/venus/wiki/dbus" target="_blank" rel="noopener noreferrer" class="blue-link">Venus OS dbus specification</a>.</p>
@@ -1060,12 +1061,12 @@ export function fetchDeviceCapabilities (baseUrl) {
     .then(response => response.json())
 }
 
-export function fetchSwitchNodeNameAndGroupFromCache (id) {
+export function fetchSwitchNodeNameAndGroupFromCache (id, baseUrl) {
   if (!id) {
     return Promise.reject(new Error('id is required'))
   }
 
-  return fetch(`/victron/cache?filter_by_serial=${id}`)
+  return fetch(`${baseUrl || ''}/victron/cache?filter_by_serial=${id}`)
     .then(response => response.json())
     .then(data => {
       for (const key in data) {
@@ -1108,9 +1109,8 @@ export function updateBatteryVoltageVisibility () {
 }
 
 // Keeps Position/Phase and the S2 Measurement dropdown consistent with the device's actual
-// configuration for acload/heatpump: enabling S2 support is what promotes the device from a
-// plain generic energy meter to its own full type, adding Position (and, for a 1-phase
-// config, which phase it's wired to) - see acload.js/heatpump.js isFullDevice(). The S2
+// configuration for acload/heatpump/evcs: Position (and, for a 1-phase config, which phase it's
+// wired to) is configurable regardless of S2 support - see acload.js/heatpump.js/evcs.js. The S2
 // Measurement dropdown mirrors Number of phases/Phase so that info doesn't need
 // re-confirming: a 1-phase config is locked to the single matching phase, a 3-phase config
 // offers only "3-phase symmetric"/"Per phase" (no single-phase reading applies), split phase
@@ -1142,17 +1142,15 @@ function updatePhaseSettingVisibility (prefix) {
   }
 
   const update = () => {
-    const isFull = $('#node-input-enable_s2support').is(':checked')
     const nrOfPhases = Number($(`#node-input-${prefix}_nrofphases`).val())
-    $(`#node-input-${prefix}_position`).closest('.form-row').toggle(isFull)
-    $(`#${prefix}-phasesetting-row`).toggle(isFull && nrOfPhases === 1)
+    $(`#node-input-${prefix}_position`).closest('.form-row').show()
+    $(`#${prefix}-phasesetting-row`).toggle(nrOfPhases === 1)
     updateS2MeasurementOptions(nrOfPhases)
   }
   $(`#node-input-${prefix}_nrofphases`).off('change.phasesetting').on('change.phasesetting', update)
   $(`#node-input-${prefix}_phasesetting`).off('change.s2measurement').on('change.s2measurement', () => {
     updateS2MeasurementOptions(Number($(`#node-input-${prefix}_nrofphases`).val()))
   })
-  $('#node-input-enable_s2support').off(`change.${prefix}-full`).on(`change.${prefix}-full`, update)
   update()
 }
 
@@ -1225,7 +1223,7 @@ export function checkSelectedVirtualDevice (context, deviceCapabilities = {}) {
     $('#pulsemeter-multiplier-row').toggle($('#node-input-auto_aggregate').is(':checked'))
   }
 
-  if (selected === 'acload' || selected === 'heatpump') {
+  if (selected === 'acload' || selected === 'heatpump' || selected === 'evcs') {
     updatePhaseSettingVisibility(selected)
   }
 
